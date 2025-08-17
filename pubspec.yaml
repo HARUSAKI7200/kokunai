@@ -1,0 +1,24 @@
+name: kojucho_form_app
+description: 工注票の入力・保存・PDF出力（A4にA5×2）アプリ
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  intl: ^0.19.0
+  shared_preferences: ^2.2.3
+  pdf: ^3.11.0
+  printing: ^5.12.0
+  uuid: ^4.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

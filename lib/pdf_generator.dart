@@ -106,24 +106,19 @@ class PdfGenerator {
               height: 26,
               child: pw.Row(
                 children: [
-                  _cell('① 製番', r.productNo, flex: 3, align: pw.TextAlign.left),
-                  _cell('② 品名', r.productName, flex: 5, align: pw.TextAlign.left),
+                  _cell('製番', r.productNo, flex: 3, align: pw.TextAlign.left),
+                  _cell('品名', r.productName, flex: 5, align: pw.TextAlign.left),
                   _cell(
-                    '③ 重量(kg)',
+                    '重量(kg)',
                     r.weightKg == null ? '' : _fmtNum(r.weightKg),
                     flex: 2,
                     align: pw.TextAlign.right,
                   ),
                   _cell(
-                    '④ 荷姿',
-                    r.packageStyle == PackageStyle.other
-                        ? 'その他:${r.packageOtherText ?? ''}'
-                        : packageStyleLabel(r.packageStyle),
+                    '荷姿',
+                    packageStyleLabel(r.packageStyle),
                     flex: 2,
                   ),
-                  _cell('⑤ 数量', r.quantity?.toString() ?? '', flex: 2, align: pw.TextAlign.right),
-                  _cell('⑥ C/S', r.cases?.toString() ?? '', flex: 2, align: pw.TextAlign.right),
-                  _cell('⑦ 腰下No', r.waistNo ?? '', flex: 3),
                 ],
               ),
             ),
@@ -148,11 +143,10 @@ class PdfGenerator {
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
-                        pw.Text('外のり幅(mm)：${_fmtOpt(r.outerWidthMm)}', style: normal),
-                        pw.SizedBox(height: 2),
-                        pw.Text('内のり高(mm)：${_fmtOpt(r.innerHeightMm)}', style: normal),
-                        pw.SizedBox(height: 2),
-                        pw.Text('内容品質量：${r.contentQuality ?? ''}', style: normal),
+                        pw.Text('荷姿: ${packageStyleLabel(r.packageStyle)}', style: normal),
+                        pw.Text('材質: ${productMaterialTypeLabel(r.materialType)}', style: normal),
+                        pw.Text('床板: ${floorPlateTypeLabel(r.floorPlate)}', style: normal),
+                        pw.Text('滑材: ${r.subzai.yobisun != null ? yobisunLabel(r.subzai.yobisun!) : '未選択'} (${r.subzai.count ?? ''}本)', style: normal),
                         pw.Spacer(),
                         pw.Text('図面スケッチ', style: small),
                       ],
@@ -167,7 +161,7 @@ class PdfGenerator {
                       border: pw.Border.all(width: 0.6),
                     ),
                     child: pw.Center(
-                      child: pw.Text('図面エリア', style: small),
+                      child: pw.Text('図面エリア（未実装）', style: small),
                     ),
                   ),
                 ),
@@ -175,7 +169,7 @@ class PdfGenerator {
             ),
           ),
 
-          // 下段：付属材帯（梁・押・ゲタ・止・他）
+          // 下段：付属材帯
           pw.Positioned(
             left: 8,
             right: 8,
@@ -190,34 +184,11 @@ class PdfGenerator {
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    _compLine('梁', r.beam, countLabel: '本数', normal: normal, small: small),
-                    _compLine('ゲタ', r.geta, countLabel: '本数', normal: normal, small: small),
-                    _compLine('押', r.oshi, countLabel: '本数', normal: normal, small: small),
-                    _compLine('止', r.tome, countLabel: '箇所', normal: normal, small: small),
-                    pw.Row(
-                      children: [
-                        pw.Text('他：', style: normal),
-                        pw.Expanded(
-                          child: pw.Text(
-                            (r.other.note ?? '').isEmpty ? '—' : r.other.note!,
-                            style: normal,
-                          ),
-                        ),
-                      ],
-                    ),
+                    // 新しい部材の表示は、印刷レイアウト決定後に実装します。
+                    pw.Text('付属材情報（未実装）', style: normal),
                   ],
                 ),
               ),
-            ),
-          ),
-
-          // 脚注
-          pw.Positioned(
-            left: 12,
-            bottom: 72,
-            child: pw.Text(
-              '□ 指図Cに従う  □ 木箱選定: BFV-A080国内向基準  □ 輸出木箱: JIS-Z-1402/1403準拠',
-              style: small,
             ),
           ),
         ],
@@ -270,40 +241,13 @@ class PdfGenerator {
     );
   }
 
-  pw.Widget _compLine(
-    String label,
-    ComponentSpec c, {
-    required String countLabel,
-    required pw.TextStyle normal,
-    required pw.TextStyle small,
-  }) {
-    final onoff = c.enabled ? '有' : '無';
-    final w = c.widthMm == null ? '' : _fmtNum(c.widthMm);
-    final t = c.thicknessMm == null ? '' : _fmtNum(c.thicknessMm);
-    final n = c.count == null ? '' : c.count.toString();
-    return pw.Padding(
-      padding: const pw.EdgeInsets.only(bottom: 1.5),
-      child: pw.Row(
-        children: [
-          pw.SizedBox(width: 24, child: pw.Text(label, style: normal)),
-          pw.Text('［$onoff］', style: small),
-          pw.SizedBox(width: 10),
-          pw.Text('幅', style: normal),
-          pw.SizedBox(width: 4),
-          pw.Text(w, style: normal),
-          pw.Text(' mm  ×  厚 ', style: normal),
-          pw.Text(t, style: normal),
-          pw.Text(' mm  ×  ', style: normal),
-          pw.Text(countLabel, style: normal),
-          pw.SizedBox(width: 2),
-          pw.Text(n, style: normal),
-        ],
-      ),
-    );
+  String _fmtNum(num? v) {
+    if (v == null) return '';
+    final isInt = (v % 1) == 0;
+    return isInt ? v.toInt().toString() : v.toStringAsFixed(1);
   }
 
   pw.Widget _hLine({double? top, double? bottom}) {
-    // top か bottom のどちらか一方を指定して使う
     return pw.Positioned(
       left: 6,
       right: 6,
@@ -312,12 +256,4 @@ class PdfGenerator {
       child: pw.Container(height: 0.8, color: PdfColors.black),
     );
   }
-
-  String _fmtNum(num? v) {
-    if (v == null) return '';
-    final isInt = (v % 1) == 0;
-    return isInt ? v.toInt().toString() : v.toStringAsFixed(1);
-  }
-
-  String _fmtOpt(num? v) => v == null ? '' : _fmtNum(v);
 }

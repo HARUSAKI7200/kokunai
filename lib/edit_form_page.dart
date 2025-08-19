@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'models.dart';
 import 'storage.dart';
+import 'drawing_page.dart';
 
 class EditFormPage extends StatefulWidget {
   final FormRecord? initial;
@@ -85,56 +86,162 @@ class _EditFormPageState extends State<EditFormPage> {
     );
   }
 
-  Widget _componentEditor(String title, ComponentSpec c,
-      {bool countIsPlaces = false}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SwitchListTile(
-          dense: true,
-          title: Text('$title：${c.enabled ? "有" : "無"}'),
-          value: c.enabled,
-          onChanged: (v) => setState(() => c.enabled = v),
-        ),
-        if (title == '他')
-          _textField(
-            label: '他の内容メモ',
-            initial: c.note,
-            onChanged: (v) => c.note = v,
-          )
-        else
+  Widget _yobisunComponentEditor(String title, ComponentSpec c) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 4),
           Row(
             children: [
               Expanded(
-                child: _numField(
-                  label: '幅',
-                  suffix: 'mm',
-                  initial: c.widthMm?.toString() ?? '',
-                  onChanged: (v) => c.widthMm = _numOrNull<double>(v),
+                child: DropdownButtonFormField<Yobisun>(
+                  value: c.yobisun,
+                  items: Yobisun.values
+                      .map((e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(yobisunLabel(e)),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => c.yobisun = v),
+                  decoration: const InputDecoration(
+                    labelText: '呼び寸',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: _numField(
-                  label: '厚さ',
-                  suffix: 'mm',
-                  initial: c.thicknessMm?.toString() ?? '',
-                  onChanged: (v) => c.thicknessMm = _numOrNull<double>(v),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _numField(
-                  label: countIsPlaces ? '箇所数' : '本数',
+                  label: '本数',
                   initial: c.count?.toString() ?? '',
-                  integer: true,
                   onChanged: (v) => c.count = _numOrNull<int>(v),
+                  integer: true,
                 ),
               ),
             ],
           ),
-        const SizedBox(height: 8),
-      ],
+        ],
+      ),
+    );
+  }
+
+  Widget _nedomeComponentEditor(String title, ComponentSpec c) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: DropdownButtonFormField<Yobisun>(
+                  value: c.yobisun,
+                  items: Yobisun.values
+                      .map((e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(yobisunLabel(e)),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => c.yobisun = v),
+                  decoration: const InputDecoration(
+                    labelText: '呼び寸',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: _numField(
+                  label: '長さ',
+                  initial: c.lengthMm?.toString() ?? '',
+                  onChanged: (v) => c.lengthMm = _numOrNull<double>(v),
+                  suffix: 'mm',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 1,
+                child: _numField(
+                  label: '本数',
+                  initial: c.count?.toString() ?? '',
+                  onChanged: (v) => c.count = _numOrNull<int>(v),
+                  integer: true,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _otherComponentEditor(String title, ComponentSpec c) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 4),
+          _textField(
+            label: '部材名',
+            initial: c.partName,
+            onChanged: (v) => c.partName = v,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                flex: 2,
+                child: DropdownButtonFormField<Yobisun>(
+                  value: c.yobisun,
+                  items: Yobisun.values
+                      .map((e) => DropdownMenuItem(
+                            value: e,
+                            child: Text(yobisunLabel(e)),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => c.yobisun = v),
+                  decoration: const InputDecoration(
+                    labelText: '呼び寸',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: _numField(
+                  label: '長さ',
+                  initial: c.lengthMm?.toString() ?? '',
+                  onChanged: (v) => c.lengthMm = _numOrNull<double>(v),
+                  suffix: 'mm',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 1,
+                child: _numField(
+                  label: '本数',
+                  initial: c.count?.toString() ?? '',
+                  onChanged: (v) => c.count = _numOrNull<int>(v),
+                  integer: true,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -155,7 +262,7 @@ class _EditFormPageState extends State<EditFormPage> {
             onPressed: _save,
             icon: const Icon(Icons.save),
             tooltip: '保存',
-          )
+          ),
         ],
       ),
       body: SafeArea(
@@ -183,8 +290,7 @@ class _EditFormPageState extends State<EditFormPage> {
                         decoration: const InputDecoration(
                           labelText: '出荷日',
                           border: OutlineInputBorder(),
-                          contentPadding:
-                              EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
                         ),
                         child: Text(df.format(rec.shipDate)),
                       ),
@@ -198,11 +304,7 @@ class _EditFormPageState extends State<EditFormPage> {
                       onChanged: (v) => rec.workPlace = v,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _textField(
                       label: '指示者',
@@ -210,143 +312,133 @@ class _EditFormPageState extends State<EditFormPage> {
                       onChanged: (v) => rec.instructor = v,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _textField(
-                      label: '伝票No',
-                      initial: rec.slipNo,
-                      onChanged: (v) => rec.slipNo = v,
-                    ),
-                  ),
                 ],
               ),
-
               const SizedBox(height: 16),
-              Text('明細（上段表）', style: styleSection),
+              Text('基本情報', style: styleSection),
               const SizedBox(height: 6),
-              _textField(
-                label: '① 製番',
-                initial: rec.productNo,
-                onChanged: (v) => rec.productNo = v,
-              ),
-              const SizedBox(height: 8),
-              _textField(
-                label: '② 品名',
-                initial: rec.productName,
-                onChanged: (v) => rec.productName = v,
-              ),
-              const SizedBox(height: 8),
               Row(
                 children: [
                   Expanded(
+                    child: _textField(
+                      label: '製番',
+                      initial: rec.productNo,
+                      onChanged: (v) => rec.productNo = v,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _textField(
+                      label: '品名',
+                      initial: rec.productName,
+                      onChanged: (v) => rec.productName = v,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
                     child: _numField(
-                      label: '③ 重量',
-                      suffix: 'kg',
+                      label: '重量',
                       initial: rec.weightKg?.toString() ?? '',
                       onChanged: (v) => rec.weightKg = _numOrNull<double>(v),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: DropdownButtonFormField<PackageStyle>(
-                      value: rec.packageStyle,
-                      items: PackageStyle.values
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e,
-                              child: Text(packageStyleLabel(e)),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setState(() => rec.packageStyle = v!),
-                      decoration: const InputDecoration(
-                        labelText: '④ 荷姿',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _textField(
-                      label: '荷姿（その他）',
-                      initial: rec.packageOtherText,
-                      onChanged: (v) => rec.packageOtherText = v,
+                      suffix: 'kg',
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _numField(
-                      label: '⑤ 数量',
-                      initial: rec.quantity?.toString() ?? '',
-                      integer: true,
-                      onChanged: (v) => rec.quantity = _numOrNull<int>(v),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _numField(
-                      label: '⑥ C/S',
-                      initial: rec.cases?.toString() ?? '',
-                      integer: true,
-                      onChanged: (v) => rec.cases = _numOrNull<int>(v),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _textField(
-                      label: '⑦ 腰下No',
-                      initial: rec.waistNo,
-                      onChanged: (v) => rec.waistNo = v,
-                    ),
-                  ),
-                ],
-              ),
-
               const SizedBox(height: 16),
-              Text('寸法・図面情報（中段）', style: styleSection),
+              Text('荷姿', style: styleSection),
+              const SizedBox(height: 6),
+              Row(
+                children: PackageStyle.values
+                    .map((e) => Expanded(
+                          child: RadioListTile<PackageStyle>(
+                            title: Text(packageStyleLabel(e)),
+                            value: e,
+                            groupValue: rec.packageStyle,
+                            onChanged: (v) => setState(() => rec.packageStyle = v!),
+                          ),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+              Text('材質', style: styleSection),
+              const SizedBox(height: 6),
+              Row(
+                children: ProductMaterialType.values
+                    .map((e) => Expanded(
+                          child: RadioListTile<ProductMaterialType>(
+                            title: Text(productMaterialTypeLabel(e)),
+                            value: e,
+                            groupValue: rec.materialType,
+                            onChanged: (v) => setState(() => rec.materialType = v!),
+                          ),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+              Text('床板', style: styleSection),
+              const SizedBox(height: 6),
+              Row(
+                children: FloorPlateType.values
+                    .map((e) => Expanded(
+                          child: RadioListTile<FloorPlateType>(
+                            title: Text(floorPlateTypeLabel(e)),
+                            value: e,
+                            groupValue: rec.floorPlate,
+                            onChanged: (v) => setState(() => rec.floorPlate = v!),
+                          ),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+              Text('ゲタ or すり材', style: styleSection),
+              const SizedBox(height: 6),
+              Row(
+                children: GetaOrSuriType.values
+                    .map((e) => Expanded(
+                          child: RadioListTile<GetaOrSuriType>(
+                            title: Text(getaOrSuriTypeLabel(e)),
+                            value: e,
+                            groupValue: rec.getaOrSuri,
+                            onChanged: (v) => setState(() => rec.getaOrSuri = v!),
+                          ),
+                        ))
+                    .toList(),
+              ),
+              _yobisunComponentEditor(getaOrSuriTypeLabel(rec.getaOrSuri), rec.getaOrSuriSpec),
+              const SizedBox(height: 16),
+              Text('部材情報', style: styleSection),
+              const SizedBox(height: 6),
+              _yobisunComponentEditor('滑材', rec.subzai),
+              _yobisunComponentEditor('H', rec.h),
+              _yobisunComponentEditor('負荷材1', rec.fukazai1),
+              _yobisunComponentEditor('負荷材2', rec.fukazai2),
+              _nedomeComponentEditor('根止め1', rec.nedome1),
+              _nedomeComponentEditor('根止め2', rec.nedome2),
+              _nedomeComponentEditor('根止め3', rec.nedome3),
+              _nedomeComponentEditor('根止め4', rec.nedome4),
+              _yobisunComponentEditor('押さえ', rec.osae),
+              _yobisunComponentEditor('梁', rec.ryo),
+              _otherComponentEditor('他1', rec.other1),
+              _otherComponentEditor('他2', rec.other2),
+              const SizedBox(height: 16),
+              Text('図面', style: styleSection),
               const SizedBox(height: 6),
               Row(
                 children: [
-                  Expanded(
-                    child: _numField(
-                      label: '外のり幅',
-                      suffix: 'mm',
-                      initial: rec.outerWidthMm?.toString() ?? '',
-                      onChanged: (v) => rec.outerWidthMm = _numOrNull<double>(v),
-                    ),
-                  ),
+                  _drawingButton('滑材', rec.subzaiDrawing, (data) {
+                    setState(() => rec.subzaiDrawing = data);
+                  }, 'assets/images/国内工注票滑材.jpg'),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: _numField(
-                      label: '内のり高',
-                      suffix: 'mm',
-                      initial: rec.innerHeightMm?.toString() ?? '',
-                      onChanged: (v) => rec.innerHeightMm = _numOrNull<double>(v),
-                    ),
-                  ),
+                  _drawingButton('腰下', rec.yokoshitaDrawing, (data) {
+                    setState(() => rec.yokoshitaDrawing = data);
+                  }, 'assets/images/国内工注票腰下図面.jpg'),
+                  const SizedBox(width: 8),
+                  _drawingButton('側ツマ', rec.hiraichiDrawing, (data) {
+                    setState(() => rec.hiraichiDrawing = data);
+                  }, 'assets/images/国内工注票平打ち.jpg'),
                 ],
               ),
-              const SizedBox(height: 8),
-              _textField(
-                label: '内容品質量（自由記述）',
-                initial: rec.contentQuality,
-                onChanged: (v) => rec.contentQuality = v,
-                maxLines: 2,
-              ),
-
-              const SizedBox(height: 16),
-              Text('付属材（下段帯）', style: styleSection),
-              const SizedBox(height: 6),
-              _componentEditor('梁', rec.beam),
-              _componentEditor('ゲタ', rec.geta),
-              _componentEditor('押', rec.oshi),
-              _componentEditor('止', rec.tome, countIsPlaces: true),
-              _componentEditor('他', rec.other),
-
               const SizedBox(height: 32),
               FilledButton.icon(
                 onPressed: _save,
@@ -357,6 +449,35 @@ class _EditFormPageState extends State<EditFormPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _drawingButton(
+      String label, DrawingData? data, Function(DrawingData?) onSave, String imagePath) {
+    return Expanded(
+      child: Column(
+        children: [
+          FilledButton.icon(
+            onPressed: () async {
+              final result = await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => DrawingPage(
+                    initialData: data,
+                    backgroundImage: imagePath,
+                  ),
+                ),
+              );
+              if (result != null && result is DrawingData) {
+                onSave(result);
+              }
+            },
+            icon: const Icon(Icons.edit),
+            label: Text('$label図面'),
+          ),
+          if (data != null && data.elements.isNotEmpty)
+            const Text('描画済み'),
+        ],
       ),
     );
   }

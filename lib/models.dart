@@ -1,89 +1,171 @@
 import 'dart:convert';
+import 'dart:ui';
+import 'package:flutter/material.dart';
 
-enum PackageStyle { pallet, wooden, bare, other }
+enum PackageStyle { yokoshita, sukashi, mekura, tatebako }
 
 String packageStyleLabel(PackageStyle s) {
   switch (s) {
-    case PackageStyle.pallet:
-      return 'パレ';
-    case PackageStyle.wooden:
-      return '木箱';
-    case PackageStyle.bare:
-      return '裸';
-    case PackageStyle.other:
-      return 'その他';
+    case PackageStyle.yokoshita:
+      return '腰下';
+    case PackageStyle.sukashi:
+      return 'スカシ';
+    case PackageStyle.mekura:
+      return 'メクラ';
+    case PackageStyle.tatebako:
+      return '立箱';
+  }
+}
+
+enum ProductMaterialType { domestic, heatTreatment, lvl }
+
+String productMaterialTypeLabel(ProductMaterialType s) {
+  switch (s) {
+    case ProductMaterialType.domestic:
+      return '国内材';
+    case ProductMaterialType.heatTreatment:
+      return '熱処理材';
+    case ProductMaterialType.lvl:
+      return 'LVL材';
+  }
+}
+
+enum FloorPlateType { none, mekura, nineMmVeneer, fifteenMmVeneer }
+
+String floorPlateTypeLabel(FloorPlateType s) {
+  switch (s) {
+    case FloorPlateType.none:
+      return 'なし';
+    case FloorPlateType.mekura:
+      return '地メクラ';
+    case FloorPlateType.nineMmVeneer:
+      return '9mmべニア';
+    case FloorPlateType.fifteenMmVeneer:
+      return '15mmべニア';
+  }
+}
+
+enum GetaOrSuriType { geta, suri }
+
+String getaOrSuriTypeLabel(GetaOrSuriType s) {
+  switch (s) {
+    case GetaOrSuriType.geta:
+      return 'ゲタ';
+    case GetaOrSuriType.suri:
+      return 'すり材';
+  }
+}
+
+enum Yobisun { gobu, hachibu, sho, goju, nisun, sansun }
+
+String yobisunLabel(Yobisun s) {
+  switch (s) {
+    case Yobisun.gobu:
+      return '5分';
+    case Yobisun.hachibu:
+      return '8分';
+    case Yobisun.sho:
+      return '小';
+    case Yobisun.goju:
+      return '50';
+    case Yobisun.nisun:
+      return '二寸';
+    case Yobisun.sansun:
+      return '三寸';
   }
 }
 
 class ComponentSpec {
-  /// 有無
-  bool enabled;
-
-  /// 幅(mm)
   double? widthMm;
-
-  /// 厚さ(mm)
   double? thicknessMm;
-
-  /// 本数（止は箇所数として使用）
   int? count;
-
-  /// 自由メモ（「他」用）
-  String? note;
+  String? partName;
+  double? lengthMm;
+  Yobisun? yobisun;
 
   ComponentSpec({
-    this.enabled = false,
     this.widthMm,
     this.thicknessMm,
     this.count,
-    this.note,
+    this.partName,
+    this.lengthMm,
+    this.yobisun,
   });
 
   Map<String, dynamic> toJson() => {
-        'enabled': enabled,
         'widthMm': widthMm,
         'thicknessMm': thicknessMm,
         'count': count,
-        'note': note,
+        'partName': partName,
+        'lengthMm': lengthMm,
+        'yobisun': yobisun?.index,
       };
 
   factory ComponentSpec.fromJson(Map<String, dynamic> j) => ComponentSpec(
-        enabled: j['enabled'] == true,
         widthMm: (j['widthMm'] as num?)?.toDouble(),
         thicknessMm: (j['thicknessMm'] as num?)?.toDouble(),
         count: (j['count'] as num?)?.toInt(),
-        note: j['note'] as String?,
+        partName: j['partName'] as String?,
+        lengthMm: (j['lengthMm'] as num?)?.toDouble(),
+        yobisun: j['yobisun'] != null ? Yobisun.values[(j['yobisun'] as num).toInt()] : null,
       );
 }
+
+class DrawingData {
+  // drawing_canvas.dart の DrawingElement.toJson() が返すMapのリスト
+  final List<Map<String, dynamic>> elements;
+  final String imageKey;
+
+  DrawingData(this.elements, {required this.imageKey});
+
+  Map<String, dynamic> toJson() => {
+        'elements': elements,
+        'imageKey': imageKey,
+      };
+
+  factory DrawingData.fromJson(Map<String, dynamic> j) {
+    return DrawingData(
+      (j['elements'] as List<dynamic>? ?? [])
+          .map((e) => e as Map<String, dynamic>)
+          .toList(),
+      imageKey: j['imageKey'] as String,
+    );
+  }
+}
+
 
 class FormRecord {
   final String id;
   DateTime shipDate;
   String workPlace;
-  String instructor; // 指示者
-  String slipNo; // 例：#31 など任意
+  String instructor;
+  String slipNo;
 
-  // 明細・上段表
-  String productNo; // 製番
-  String productName; // 品名
-  double? weightKg; // 重量
-  PackageStyle packageStyle; // 荷姿
-  String? packageOtherText; // その他の詳細
-  int? quantity; // 数量
-  int? cases; // C/S
-  String? waistNo; // 腰下No
+  String productNo;
+  String productName;
+  double? weightKg;
+  PackageStyle packageStyle;
+  ProductMaterialType materialType;
 
-  // 寸法
-  double? outerWidthMm; // 外のり幅
-  double? innerHeightMm; // 内のり高
-  String? contentQuality; // 内容品質量（自由記述）
+  ComponentSpec subzai;
+  FloorPlateType floorPlate;
+  ComponentSpec h;
+  ComponentSpec fukazai1;
+  ComponentSpec fukazai2;
+  GetaOrSuriType getaOrSuri;
+  ComponentSpec getaOrSuriSpec;
+  ComponentSpec nedome1;
+  ComponentSpec nedome2;
+  ComponentSpec nedome3;
+  ComponentSpec nedome4;
+  ComponentSpec osae;
+  ComponentSpec ryo;
+  ComponentSpec other1;
+  ComponentSpec other2;
 
-  // 付属材
-  ComponentSpec beam; // 梁
-  ComponentSpec geta; // ゲタ
-  ComponentSpec oshi; // 押
-  ComponentSpec tome; // 止（count=箇所）
-  ComponentSpec other; // 他（note活用）
+  DrawingData? subzaiDrawing;
+  DrawingData? yokoshitaDrawing;
+  DrawingData? hiraichiDrawing;
 
   DateTime createdAt;
   DateTime updatedAt;
@@ -97,26 +179,41 @@ class FormRecord {
     required this.productNo,
     required this.productName,
     this.weightKg,
-    this.packageStyle = PackageStyle.pallet,
-    this.packageOtherText,
-    this.quantity,
-    this.cases,
-    this.waistNo,
-    this.outerWidthMm,
-    this.innerHeightMm,
-    this.contentQuality,
-    ComponentSpec? beam,
-    ComponentSpec? geta,
-    ComponentSpec? oshi,
-    ComponentSpec? tome,
-    ComponentSpec? other,
+    this.packageStyle = PackageStyle.yokoshita,
+    this.materialType = ProductMaterialType.domestic,
+    this.floorPlate = FloorPlateType.none,
+    this.getaOrSuri = GetaOrSuriType.geta,
+    ComponentSpec? subzai,
+    ComponentSpec? h,
+    ComponentSpec? fukazai1,
+    ComponentSpec? fukazai2,
+    ComponentSpec? getaOrSuriSpec,
+    ComponentSpec? nedome1,
+    ComponentSpec? nedome2,
+    ComponentSpec? nedome3,
+    ComponentSpec? nedome4,
+    ComponentSpec? osae,
+    ComponentSpec? ryo,
+    ComponentSpec? other1,
+    ComponentSpec? other2,
+    this.subzaiDrawing,
+    this.yokoshitaDrawing,
+    this.hiraichiDrawing,
     DateTime? createdAt,
     DateTime? updatedAt,
-  })  : beam = beam ?? ComponentSpec(),
-        geta = geta ?? ComponentSpec(),
-        oshi = oshi ?? ComponentSpec(),
-        tome = tome ?? ComponentSpec(),
-        other = other ?? ComponentSpec(),
+  })  : subzai = subzai ?? ComponentSpec(),
+        h = h ?? ComponentSpec(),
+        fukazai1 = fukazai1 ?? ComponentSpec(),
+        fukazai2 = fukazai2 ?? ComponentSpec(),
+        getaOrSuriSpec = getaOrSuriSpec ?? ComponentSpec(),
+        nedome1 = nedome1 ?? ComponentSpec(),
+        nedome2 = nedome2 ?? ComponentSpec(),
+        nedome3 = nedome3 ?? ComponentSpec(),
+        nedome4 = nedome4 ?? ComponentSpec(),
+        osae = osae ?? ComponentSpec(),
+        ryo = ryo ?? ComponentSpec(),
+        other1 = other1 ?? ComponentSpec(),
+        other2 = other2 ?? ComponentSpec(),
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
@@ -130,18 +227,25 @@ class FormRecord {
         'productName': productName,
         'weightKg': weightKg,
         'packageStyle': packageStyle.index,
-        'packageOtherText': packageOtherText,
-        'quantity': quantity,
-        'cases': cases,
-        'waistNo': waistNo,
-        'outerWidthMm': outerWidthMm,
-        'innerHeightMm': innerHeightMm,
-        'contentQuality': contentQuality,
-        'beam': beam.toJson(),
-        'geta': geta.toJson(),
-        'oshi': oshi.toJson(),
-        'tome': tome.toJson(),
-        'other': other.toJson(),
+        'materialType': materialType.index,
+        'floorPlate': floorPlate.index,
+        'getaOrSuri': getaOrSuri.index,
+        'subzai': subzai.toJson(),
+        'h': h.toJson(),
+        'fukazai1': fukazai1.toJson(),
+        'fukazai2': fukazai2.toJson(),
+        'getaOrSuriSpec': getaOrSuriSpec.toJson(),
+        'nedome1': nedome1.toJson(),
+        'nedome2': nedome2.toJson(),
+        'nedome3': nedome3.toJson(),
+        'nedome4': nedome4.toJson(),
+        'osae': osae.toJson(),
+        'ryo': ryo.toJson(),
+        'other1': other1.toJson(),
+        'other2': other2.toJson(),
+        'subzaiDrawing': subzaiDrawing?.toJson(),
+        'yokoshitaDrawing': yokoshitaDrawing?.toJson(),
+        'hiraichiDrawing': hiraichiDrawing?.toJson(),
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
       };
@@ -155,20 +259,32 @@ class FormRecord {
         productNo: j['productNo'] as String? ?? '',
         productName: j['productName'] as String? ?? '',
         weightKg: (j['weightKg'] as num?)?.toDouble(),
-        packageStyle:
-            PackageStyle.values[(j['packageStyle'] as num? ?? 0).toInt()],
-        packageOtherText: j['packageOtherText'] as String?,
-        quantity: (j['quantity'] as num?)?.toInt(),
-        cases: (j['cases'] as num?)?.toInt(),
-        waistNo: j['waistNo'] as String?,
-        outerWidthMm: (j['outerWidthMm'] as num?)?.toDouble(),
-        innerHeightMm: (j['innerHeightMm'] as num?)?.toDouble(),
-        contentQuality: j['contentQuality'] as String?,
-        beam: ComponentSpec.fromJson(j['beam'] as Map<String, dynamic>),
-        geta: ComponentSpec.fromJson(j['geta'] as Map<String, dynamic>),
-        oshi: ComponentSpec.fromJson(j['oshi'] as Map<String, dynamic>),
-        tome: ComponentSpec.fromJson(j['tome'] as Map<String, dynamic>),
-        other: ComponentSpec.fromJson(j['other'] as Map<String, dynamic>),
+        packageStyle: PackageStyle.values[(j['packageStyle'] as num).toInt()],
+        materialType: ProductMaterialType.values[(j['materialType'] as num).toInt()],
+        floorPlate: FloorPlateType.values[(j['floorPlate'] as num).toInt()],
+        getaOrSuri: GetaOrSuriType.values[(j['getaOrSuri'] as num).toInt()],
+        subzai: ComponentSpec.fromJson(j['subzai'] as Map<String, dynamic>),
+        h: ComponentSpec.fromJson(j['h'] as Map<String, dynamic>),
+        fukazai1: ComponentSpec.fromJson(j['fukazai1'] as Map<String, dynamic>),
+        fukazai2: ComponentSpec.fromJson(j['fukazai2'] as Map<String, dynamic>),
+        getaOrSuriSpec: ComponentSpec.fromJson(j['getaOrSuriSpec'] as Map<String, dynamic>),
+        nedome1: ComponentSpec.fromJson(j['nedome1'] as Map<String, dynamic>),
+        nedome2: ComponentSpec.fromJson(j['nedome2'] as Map<String, dynamic>),
+        nedome3: ComponentSpec.fromJson(j['nedome3'] as Map<String, dynamic>),
+        nedome4: ComponentSpec.fromJson(j['nedome4'] as Map<String, dynamic>),
+        osae: ComponentSpec.fromJson(j['osae'] as Map<String, dynamic>),
+        ryo: ComponentSpec.fromJson(j['ryo'] as Map<String, dynamic>),
+        other1: ComponentSpec.fromJson(j['other1'] as Map<String, dynamic>),
+        other2: ComponentSpec.fromJson(j['other2'] as Map<String, dynamic>),
+        subzaiDrawing: j['subzaiDrawing'] != null
+            ? DrawingData.fromJson(j['subzaiDrawing'] as Map<String, dynamic>)
+            : null,
+        yokoshitaDrawing: j['yokoshitaDrawing'] != null
+            ? DrawingData.fromJson(j['yokoshitaDrawing'] as Map<String, dynamic>)
+            : null,
+        hiraichiDrawing: j['hiraichiDrawing'] != null
+            ? DrawingData.fromJson(j['hiraichiDrawing'] as Map<String, dynamic>)
+            : null,
         createdAt: DateTime.parse(j['createdAt'] as String),
         updatedAt: DateTime.parse(j['updatedAt'] as String),
       );

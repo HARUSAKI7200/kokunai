@@ -1,19 +1,18 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:intl/date_symbol_data_local.dart'; // ★追加：ロケールデータ
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:printing/printing.dart';
-
+import 'package:uuid/uuid.dart';
 import 'edit_form_page.dart';
 import 'models.dart';
 import 'pdf_generator.dart';
 import 'storage.dart';
 
-// ★mainをasyncにしてロケール初期化を完了させてからrunAppする
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   Intl.defaultLocale = 'ja_JP';
-  await initializeDateFormatting('ja_JP', null); // ★これが必須
+  await initializeDateFormatting('ja_JP', null);
   runApp(const App());
 }
 
@@ -45,7 +44,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   List<FormRecord> list = [];
-  final df = DateFormat('yyyy/MM/dd'); // initializeDateFormatting後なのでOK
+  final df = DateFormat('yyyy/MM/dd');
 
   @override
   void initState() {
@@ -62,6 +61,14 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _add() async {
+    final ok = await Navigator.of(context)
+        .push<bool>(MaterialPageRoute(builder: (_) => const EditFormPage()));
+    if (ok == true) _reload();
+  }
+
+  // 新しいメソッドを追加
+  Future<void> _addFromTemplate() async {
+    // テンプレートから作成するロジックをここに実装
     final ok = await Navigator.of(context)
         .push<bool>(MaterialPageRoute(builder: (_) => const EditFormPage()));
     if (ok == true) _reload();
@@ -114,47 +121,72 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _add,
-        icon: const Icon(Icons.add),
-        label: const Text('新規'),
-      ),
-      body: list.isEmpty
-          ? const Center(child: Text('データがありません。右下の「新規」から作成してください。'))
-          : ListView.separated(
-              itemCount: list.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (context, i) {
-                final r = list[i];
-                final subtitle = [
-                  '出荷日:${df.format(r.shipDate)}',
-                  if (r.productNo.isNotEmpty) '製番:${r.productNo}',
-                  if ((r.quantity ?? 0) > 0) '数量:${r.quantity}',
-                  if ((r.cases ?? 0) > 0) 'C/S:${r.cases}',
-                ].join('  ');
-                return ListTile(
-                  title: Text(r.productName.isEmpty ? '（品名未入力）' : r.productName),
-                  subtitle: Text('$subtitle\n更新:${dfTime.format(r.updatedAt)}'),
-                  isThreeLine: true,
-                  onTap: () => _edit(r),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        tooltip: 'この1件を出力',
-                        onPressed: () => _exportPdf([r]),
-                        icon: const Icon(Icons.picture_as_pdf),
-                      ),
-                      IconButton(
-                        tooltip: '削除',
-                        onPressed: () => _delete(r),
-                        icon: const Icon(Icons.delete),
-                      ),
-                    ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _add,
+                      icon: const Icon(Icons.add),
+                      label: const Text('新規作成'),
+                    ),
                   ),
-                );
-              },
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _addFromTemplate,
+                      icon: const Icon(Icons.copy),
+                      label: const Text('テンプレートから作成'),
+                    ),
+                  ),
+                ],
+              ),
             ),
+            const Divider(height: 1),
+            Expanded(
+              child: list.isEmpty
+                  ? const Center(child: Text('データがありません。右下の「新規」から作成してください。'))
+                  : ListView.separated(
+                      itemCount: list.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, i) {
+                        final r = list[i];
+                        final subtitle = [
+                          '出荷日:${df.format(r.shipDate)}',
+                          if (r.productNo.isNotEmpty) '製番:${r.productNo}',
+                        ].join('  ');
+                        return ListTile(
+                          title: Text(r.productName.isEmpty ? '（品名未入力）' : r.productName),
+                          subtitle: Text('$subtitle\n更新:${dfTime.format(r.updatedAt)}'),
+                          isThreeLine: true,
+                          onTap: () => _edit(r),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                tooltip: 'この1件を出力',
+                                onPressed: () => _exportPdf([r]),
+                                icon: const Icon(Icons.picture_as_pdf),
+                              ),
+                              IconButton(
+                                tooltip: '削除',
+                                onPressed: () => _delete(r),
+                                icon: const Icon(Icons.delete),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

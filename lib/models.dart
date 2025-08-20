@@ -56,7 +56,7 @@ String getaOrSuriTypeLabel(GetaOrSuriType s) {
   }
 }
 
-enum Yobisun { gobu, hachibu, sho, goju, nisun, sansun }
+enum Yobisun { gobu, hachibu, sho, goju, nisun, sansun, issun }
 
 String yobisunLabel(Yobisun s) {
   switch (s) {
@@ -72,6 +72,8 @@ String yobisunLabel(Yobisun s) {
       return '二寸';
     case Yobisun.sansun:
       return '三寸';
+    case Yobisun.issun:
+      return '一寸';
   }
 }
 
@@ -107,20 +109,30 @@ class ComponentSpec {
         count: (j['count'] as num?)?.toInt(),
         partName: j['partName'] as String?,
         lengthMm: (j['lengthMm'] as num?)?.toDouble(),
-        yobisun: j['yobisun'] != null ? Yobisun.values[(j['yobisun'] as num).toInt()] : null,
+        yobisun: j['yobisun'] != null && j['yobisun'] < Yobisun.values.length ? Yobisun.values[(j['yobisun'] as num).toInt()] : null,
       );
 }
 
 class DrawingData {
-  // drawing_canvas.dart の DrawingElement.toJson() が返すMapのリスト
   final List<Map<String, dynamic>> elements;
   final String imageKey;
+  final double? sourceWidth;
+  final double? sourceHeight;
+  dynamic? previewBytes;
 
-  DrawingData(this.elements, {required this.imageKey});
+
+  DrawingData(this.elements, {
+    required this.imageKey,
+    this.previewBytes,
+    this.sourceWidth,
+    this.sourceHeight,
+  });
 
   Map<String, dynamic> toJson() => {
         'elements': elements,
         'imageKey': imageKey,
+        'sourceWidth': sourceWidth,
+        'sourceHeight': sourceHeight,
       };
 
   factory DrawingData.fromJson(Map<String, dynamic> j) {
@@ -129,6 +141,8 @@ class DrawingData {
           .map((e) => e as Map<String, dynamic>)
           .toList(),
       imageKey: j['imageKey'] as String,
+      sourceWidth: (j['sourceWidth'] as num?)?.toDouble(),
+      sourceHeight: (j['sourceHeight'] as num?)?.toDouble(),
     );
   }
 }
@@ -146,6 +160,13 @@ class FormRecord {
   double? weightKg;
   PackageStyle packageStyle;
   ProductMaterialType materialType;
+  
+  String? insideLength;
+  String? insideWidth;
+  String? insideHeight;
+  String? outsideLength;
+  String? outsideWidth;
+  String? outsideHeight;
 
   ComponentSpec subzai;
   FloorPlateType floorPlate;
@@ -183,6 +204,12 @@ class FormRecord {
     this.materialType = ProductMaterialType.domestic,
     this.floorPlate = FloorPlateType.none,
     this.getaOrSuri = GetaOrSuriType.geta,
+    this.insideLength,
+    this.insideWidth,
+    this.insideHeight,
+    this.outsideLength,
+    this.outsideWidth,
+    this.outsideHeight,
     ComponentSpec? subzai,
     ComponentSpec? h,
     ComponentSpec? fukazai1,
@@ -217,6 +244,84 @@ class FormRecord {
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
+  FormRecord copyWith({
+    String? id,
+    DateTime? shipDate,
+    String? workPlace,
+    String? instructor,
+    String? slipNo,
+    String? productNo,
+    String? productName,
+    double? weightKg,
+    PackageStyle? packageStyle,
+    ProductMaterialType? materialType,
+    String? insideLength,
+    String? insideWidth,
+    String? insideHeight,
+    String? outsideLength,
+    String? outsideWidth,
+    String? outsideHeight,
+    FloorPlateType? floorPlate,
+    GetaOrSuriType? getaOrSuri,
+    ComponentSpec? subzai,
+    ComponentSpec? h,
+    ComponentSpec? fukazai1,
+    ComponentSpec? fukazai2,
+    ComponentSpec? getaOrSuriSpec,
+    ComponentSpec? nedome1,
+    ComponentSpec? nedome2,
+    ComponentSpec? nedome3,
+    ComponentSpec? nedome4,
+    ComponentSpec? osae,
+    ComponentSpec? ryo,
+    ComponentSpec? other1,
+    ComponentSpec? other2,
+    DrawingData? subzaiDrawing,
+    DrawingData? yokoshitaDrawing,
+    DrawingData? hiraichiDrawing,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return FormRecord(
+      id: id ?? this.id,
+      shipDate: shipDate ?? this.shipDate,
+      workPlace: workPlace ?? this.workPlace,
+      instructor: instructor ?? this.instructor,
+      slipNo: slipNo ?? this.slipNo,
+      productNo: productNo ?? this.productNo,
+      productName: productName ?? this.productName,
+      weightKg: weightKg ?? this.weightKg,
+      packageStyle: packageStyle ?? this.packageStyle,
+      materialType: materialType ?? this.materialType,
+      insideLength: insideLength ?? this.insideLength,
+      insideWidth: insideWidth ?? this.insideWidth,
+      insideHeight: insideHeight ?? this.insideHeight,
+      outsideLength: outsideLength ?? this.outsideLength,
+      outsideWidth: outsideWidth ?? this.outsideWidth,
+      outsideHeight: outsideHeight ?? this.outsideHeight,
+      floorPlate: floorPlate ?? this.floorPlate,
+      getaOrSuri: getaOrSuri ?? this.getaOrSuri,
+      subzai: subzai ?? this.subzai,
+      h: h ?? this.h,
+      fukazai1: fukazai1 ?? this.fukazai1,
+      fukazai2: fukazai2 ?? this.fukazai2,
+      getaOrSuriSpec: getaOrSuriSpec ?? this.getaOrSuriSpec,
+      nedome1: nedome1 ?? this.nedome1,
+      nedome2: nedome2 ?? this.nedome2,
+      nedome3: nedome3 ?? this.nedome3,
+      nedome4: nedome4 ?? this.nedome4,
+      osae: osae ?? this.osae,
+      ryo: ryo ?? this.ryo,
+      other1: other1 ?? this.other1,
+      other2: other2 ?? this.other2,
+      subzaiDrawing: subzaiDrawing ?? this.subzaiDrawing,
+      yokoshitaDrawing: yokoshitaDrawing ?? this.yokoshitaDrawing,
+      hiraichiDrawing: hiraichiDrawing ?? this.hiraichiDrawing,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'shipDate': shipDate.toIso8601String(),
@@ -230,6 +335,12 @@ class FormRecord {
         'materialType': materialType.index,
         'floorPlate': floorPlate.index,
         'getaOrSuri': getaOrSuri.index,
+        'insideLength': insideLength,
+        'insideWidth': insideWidth,
+        'insideHeight': insideHeight,
+        'outsideLength': outsideLength,
+        'outsideWidth': outsideWidth,
+        'outsideHeight': outsideHeight,
         'subzai': subzai.toJson(),
         'h': h.toJson(),
         'fukazai1': fukazai1.toJson(),
@@ -263,6 +374,12 @@ class FormRecord {
         materialType: ProductMaterialType.values[(j['materialType'] as num).toInt()],
         floorPlate: FloorPlateType.values[(j['floorPlate'] as num).toInt()],
         getaOrSuri: GetaOrSuriType.values[(j['getaOrSuri'] as num).toInt()],
+        insideLength: j['insideLength'] as String?,
+        insideWidth: j['insideWidth'] as String?,
+        insideHeight: j['insideHeight'] as String?,
+        outsideLength: j['outsideLength'] as String?,
+        outsideWidth: j['outsideWidth'] as String?,
+        outsideHeight: j['outsideHeight'] as String?,
         subzai: ComponentSpec.fromJson(j['subzai'] as Map<String, dynamic>),
         h: ComponentSpec.fromJson(j['h'] as Map<String, dynamic>),
         fukazai1: ComponentSpec.fromJson(j['fukazai1'] as Map<String, dynamic>),

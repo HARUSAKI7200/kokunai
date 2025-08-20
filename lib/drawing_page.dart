@@ -284,10 +284,25 @@ class _DrawingPageState extends State<DrawingPage> {
   }
 
   void _saveDrawing() {
-    final elementsAsJson =
-        _elementsNotifier.value.map((e) => e.toJson()).toList();
-    final drawingData =
-        DrawingData(elementsAsJson, imageKey: widget.backgroundImage);
+    if (_imageBounds == null) return;
+
+    final offset = _imageBounds!.topLeft;
+
+    // 座標を左上からの相対位置に変換した新しい要素のリストを作成
+    final elementsToSave = _elementsNotifier.value.map((element) {
+      final clone = element.clone(); // 現在の状態を変更しないようにクローン
+      clone.move(-offset); // 全ての座標を移動
+      return clone;
+    }).toList();
+
+    final elementsAsJson = elementsToSave.map((e) => e.toJson()).toList();
+    
+    final drawingData = DrawingData(
+      elementsAsJson,
+      imageKey: widget.backgroundImage,
+      sourceWidth: _imageBounds!.width, // 描画領域の幅を保存
+      sourceHeight: _imageBounds!.height, // 描画領域の高さを保存
+    );
     Navigator.of(context).pop(drawingData);
   }
 

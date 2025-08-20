@@ -66,12 +66,58 @@ class _HomePageState extends State<HomePage> {
     if (ok == true) _reload();
   }
 
-  // 新しいメソッドを追加
   Future<void> _addFromTemplate() async {
-    // テンプレートから作成するロジックをここに実装
-    final ok = await Navigator.of(context)
-        .push<bool>(MaterialPageRoute(builder: (_) => const EditFormPage()));
-    if (ok == true) _reload();
+    final templates = await StorageService().getTemplateList();
+    if (templates.isEmpty && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('利用できるテンプレートがありません。')));
+      return;
+    }
+
+    final selectedKey = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('テンプレートを選択'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: templates.length,
+            itemBuilder: (context, index) {
+              final key = templates.keys.elementAt(index);
+              final name = templates[key]!;
+              return ListTile(
+                title: Text(name),
+                onTap: () => Navigator.of(context).pop(key),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('キャンセル'),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedKey != null) {
+      final templateRecord = await StorageService().loadTemplate(selectedKey);
+      if (templateRecord != null) {
+        // copyWith を使って新しいインスタンスを生成
+        final newRecord = templateRecord.copyWith(
+          id: const Uuid().v4(),
+          shipDate: DateTime.now(),
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+
+        final ok = await Navigator.of(context).push<bool>(
+          MaterialPageRoute(builder: (_) => EditFormPage(initial: newRecord)),
+        );
+        if (ok == true) _reload();
+      }
+    }
   }
 
   Future<void> _edit(FormRecord r) async {
@@ -98,6 +144,32 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _deleteAll() async {
+    if (list.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('削除できる履歴がありません。')));
+      return;
+    }
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('すべての履歴を削除しますか？'),
+        content: const Text('この操作は元に戻せません。本当によろしいですか？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('キャンセル')),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('すべて削除'),
+          ),
+        ],
+      ),
+    );
+    if (yes == true) {
+      await StorageService().deleteAll();
+      _reload();
+    }
+  }
+
   Future<void> _exportPdf(List<FormRecord> targets) async {
     if (targets.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('出力対象がありません。')));
@@ -115,9 +187,9 @@ class _HomePageState extends State<HomePage> {
         title: const Text('工注票 一覧'),
         actions: [
           IconButton(
-            tooltip: '全件をA4（A5×2）で出力',
-            onPressed: () => _exportPdf(list),
-            icon: const Icon(Icons.print),
+            tooltip: '全履歴を削除',
+            onPressed: _deleteAll,
+            icon: const Icon(Icons.delete_sweep_outlined),
           ),
         ],
       ),
@@ -150,7 +222,7 @@ class _HomePageState extends State<HomePage> {
             const Divider(height: 1),
             Expanded(
               child: list.isEmpty
-                  ? const Center(child: Text('データがありません。右下の「新規」から作成してください。'))
+                  ? const Center(child: Text('データがありません。「新規作成」から作成してください。'))
                   : ListView.separated(
                       itemCount: list.length,
                       separatorBuilder: (_, __) => const Divider(height: 1),

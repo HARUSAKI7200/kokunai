@@ -67,6 +67,9 @@ class PdfGenerator {
     final normal = pw.TextStyle(fontSize: 9);
     final bold = pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold);
 
+    final insideDim = [r.insideLength, r.insideWidth, r.insideHeight].where((s) => s != null && s.isNotEmpty).join(' x ');
+    final outsideDim = [r.outsideLength, r.outsideWidth, r.outsideHeight].where((s) => s != null && s.isNotEmpty).join(' x ');
+
     return pw.Container(
       height: height,
       decoration: pw.BoxDecoration(
@@ -143,6 +146,8 @@ class PdfGenerator {
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
+                        if(insideDim.isNotEmpty) pw.Text('内寸: $insideDim', style: normal),
+                        if(outsideDim.isNotEmpty) pw.Text('外寸: $outsideDim', style: normal),
                         pw.Text('荷姿: ${packageStyleLabel(r.packageStyle)}', style: normal),
                         pw.Text('材質: ${productMaterialTypeLabel(r.materialType)}', style: normal),
                         pw.Text('床板: ${floorPlateTypeLabel(r.floorPlate)}', style: normal),

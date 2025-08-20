@@ -1,3 +1,4 @@
+// lib/main.dart
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -8,6 +9,7 @@ import 'edit_form_page.dart';
 import 'models.dart';
 import 'pdf_generator.dart';
 import 'storage.dart';
+import 'template_list_screen.dart'; // 👈 追加
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -66,59 +68,18 @@ class _HomePageState extends State<HomePage> {
     if (ok == true) _reload();
   }
 
+  // ▼▼▼ このメソッドを修正 ▼▼▼
   Future<void> _addFromTemplate() async {
-    final templates = await StorageService().getTemplateList();
-    if (templates.isEmpty && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('利用できるテンプレートがありません。')));
-      return;
-    }
-
-    final selectedKey = await showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('テンプレートを選択'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: templates.length,
-            itemBuilder: (context, index) {
-              final key = templates.keys.elementAt(index);
-              final name = templates[key]!;
-              return ListTile(
-                title: Text(name),
-                onTap: () => Navigator.of(context).pop(key),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('キャンセル'),
-          ),
-        ],
-      ),
+    // TemplateListScreenに遷移し、結果(trueならリロード)を待つ
+    final ok = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const TemplateListScreen()),
     );
-
-    if (selectedKey != null) {
-      final templateRecord = await StorageService().loadTemplate(selectedKey);
-      if (templateRecord != null) {
-        // copyWith を使って新しいインスタンスを生成
-        final newRecord = templateRecord.copyWith(
-          id: const Uuid().v4(),
-          shipDate: DateTime.now(),
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-
-        final ok = await Navigator.of(context).push<bool>(
-          MaterialPageRoute(builder: (_) => EditFormPage(initial: newRecord)),
-        );
-        if (ok == true) _reload();
-      }
+    // テンプレートから作成・保存されたらリストをリロード
+    if (ok == true) {
+      _reload();
     }
   }
+  // ▲▲▲ ここまで修正 ▲▲▲
 
   Future<void> _edit(FormRecord r) async {
     final ok = await Navigator.of(context)
@@ -212,7 +173,7 @@ class _HomePageState extends State<HomePage> {
                   Expanded(
                     child: FilledButton.icon(
                       onPressed: _addFromTemplate,
-                      icon: const Icon(Icons.copy),
+                      icon: const Icon(Icons.file_open_outlined), // アイコンを変更
                       label: const Text('テンプレートから作成'),
                     ),
                   ),
@@ -248,7 +209,7 @@ class _HomePageState extends State<HomePage> {
                               IconButton(
                                 tooltip: '削除',
                                 onPressed: () => _delete(r),
-                                icon: const Icon(Icons.delete),
+                                icon: const Icon(Icons.delete_outline),
                               ),
                             ],
                           ),

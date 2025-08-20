@@ -1,10 +1,14 @@
+// lib/storage.dart
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 class StorageService {
   static const _key = 'kojucho_forms_v1';
-  static const _templatePrefix = 'template_';
+  // 履歴とは別のフォルダにテンプレートを保存
+  static const _templateDir = 'templates';
 
   Future<List<FormRecord>> loadAll() async {
     final sp = await SharedPreferences.getInstance();
@@ -47,37 +51,19 @@ class StorageService {
         );
   }
 
-  // --- Template Methods ---
+  // --- Template Methods (File System based) ---
 
   Future<void> saveTemplate(String productName, String templateName, FormRecord record) async {
-    final sp = await SharedPreferences.getInstance();
-    final key = '$_templatePrefix${productName}_$templateName';
-    final recordJson = jsonEncode(record.toJson());
-    await sp.setString(key, recordJson);
-  }
-
-  Future<Map<String, String>> getTemplateList() async {
-    final sp = await SharedPreferences.getInstance();
-    final keys = sp.getKeys();
-    final templateKeys = keys.where((key) => key.startsWith(_templatePrefix));
-
-    final Map<String, String> templates = {};
-    for (final key in templateKeys) {
-      final displayName = key.substring(_templatePrefix.length).replaceAll('_', ' / ');
-      templates[key] = displayName;
+    final directory = await getApplicationDocumentsDirectory();
+    // 製品名のフォルダを作成
+    final productDir = Directory('${directory.path}/$_templateDir/$productName');
+    if (!await productDir.exists()) {
+      await productDir.create(recursive: true);
     }
-    return templates;
-  }
-
-  Future<FormRecord?> loadTemplate(String key) async {
-    final sp = await SharedPreferences.getInstance();
-    final jsonString = sp.getString(key);
-    if (jsonString == null) return null;
-    return FormRecord.fromJson(jsonDecode(jsonString));
-  }
-
-  Future<void> deleteTemplate(String key) async {
-    final sp = await SharedPreferences.getInstance();
-    await sp.remove(key);
+    
+    // テンプレートファイルをJSONとして保存
+    final file = File('${productDir.path}/$templateName.json');
+    final recordJson = jsonEncode(record.toJson());
+    await file.writeAsString(recordJson);
   }
 }

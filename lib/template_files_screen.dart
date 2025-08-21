@@ -85,24 +85,25 @@ class _TemplateFilesScreenState extends State<TemplateFilesScreen> {
 
       if (!mounted) return;
 
-      // テンプレートから新しいレコードを作成
       final newRecord = templateRecord.copyWith(
         id: const Uuid().v4(),
-        shipDate: DateTime.now(), // 出荷日は今日に
-        slipNo: '', // 伝票Noはクリア
+        shipDate: DateTime.now(),
+        slipNo: '',
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
 
-      // 編集画面に遷移し、結果を受け取る
+      // ▼▼▼【変更】EditFormPageにテンプレートのパスを渡す ▼▼▼
       final ok = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
-          builder: (context) => EditFormPage(initial: newRecord),
+          builder: (context) => EditFormPage(
+            initial: newRecord,
+            templatePath: file.path, // 👈 この行を追加
+          ),
         ),
       );
+      // ▲▲▲ ここまで変更 ▲▲▲
 
-      // 編集画面が保存されて閉じた場合 (ok == true)、
-      // この画面も閉じて、フォルダ選択画面に通知
       if (ok == true) {
         Navigator.of(context).pop(true);
       }

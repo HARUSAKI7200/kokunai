@@ -1,3 +1,4 @@
+// lib/edit_form_page.dart
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -12,10 +13,15 @@ import 'package:flutter/rendering.dart';
 
 import 'drawing_canvas.dart';
 
-
 class EditFormPage extends StatefulWidget {
   final FormRecord? initial;
-  const EditFormPage({super.key, this.initial});
+  final String? templatePath; // 👈【追加】テンプレートのファイルパス
+
+  const EditFormPage({
+    super.key,
+    this.initial,
+    this.templatePath, // 👈【追加】コンストラクタでパスを受け取る
+  });
 
   @override
   State<EditFormPage> createState() => _EditFormPageState();
@@ -290,7 +296,8 @@ class _EditFormPageState extends State<EditFormPage> {
     );
   }
 
-  Future<void> _save() async {
+  // ★★★ 履歴に保存するためのメソッド ★★★
+  Future<void> _saveToHistory() async {
     if (!_formKey.currentState!.validate()) {
        ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('入力内容にエラーがあります。確認してください。')),
@@ -299,14 +306,10 @@ class _EditFormPageState extends State<EditFormPage> {
     }
     await StorageService().upsert(rec);
   }
-  
-  Future<void> _saveAndPop() async {
-    await _save();
-    if(mounted) Navigator.of(context).pop(true);
-  }
 
   Future<void> _printPreview() async {
-    await _save();
+    // ★★★【変更】印刷前に履歴へ保存 ★★★
+    await _saveToHistory();
     if (!mounted) return;
      if (!_formKey.currentState!.validate()){
        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('入力内容にエラーがあります。')));
@@ -315,11 +318,19 @@ class _EditFormPageState extends State<EditFormPage> {
 
     final bytes = await PdfGenerator().buildA4WithTwoA5([rec]);
     await Printing.layoutPdf(onLayout: (format) async => Uint8List.fromList(bytes));
+    // ★★★【追加】保存完了をユーザーに通知 ★★★
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('作成履歴に保存しました。'), backgroundColor: Colors.green),
+    );
   }
   
   Future<void> _saveAsTemplate() async {
-    await _save();
-    if (!mounted) return;
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('入力内容にエラーがあります。')),
+      );
+      return;
+    }
 
     final productNameController = TextEditingController(text: rec.productName);
     final templateNameController = TextEditingController();
@@ -369,21 +380,78 @@ class _EditFormPageState extends State<EditFormPage> {
       await StorageService().saveTemplate(productName, templateName, rec);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('「$productName / $templateName」としてテンプレートを保存しました。')),
+          SnackBar(content: Text('「$productName / $templateName」としてテンプレートを保存しました。'), backgroundColor: Colors.green),
         );
       }
     }
   }
 
+  // ★★★【追加】テンプレートを上書き保存するメソッド ★★★
+  Future<void> _overwriteTemplate() async {
+    if (widget.templatePath == null) return;
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('入力内容にエラーがあります。')),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('上書き保存の確認'),
+        content: const Text('現在の内容でこのテンプレートを上書きします。\nよろしいですか？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('キャンセル'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade700),
+            child: const Text('上書き保存'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await StorageService().saveTemplate(
+        rec.productName, // フォルダ名は現在の製品名を使う
+        widget.templatePath!.split('/').last.replaceAll('.json', ''), // ファイル名は元の名前を維持
+        rec
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('テンプレートを上書き保存しました。'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+       if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('上書き保存に失敗しました: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final styleSection = Theme.of(context).textTheme.titleMedium;
     return PopScope(
-      canPop: false,
+      canPop: true, // 戻るボタンを許可
       onPopInvoked: (didPop) async {
         if (didPop) return;
-        _saveAndPop();
+        Navigator.of(context).pop(false); // 保存せずに戻る
       },
       child: Scaffold(
         appBar: AppBar(
@@ -563,25 +631,41 @@ class _EditFormPageState extends State<EditFormPage> {
                   ],
                 ),
                 const SizedBox(height: 32),
-                Row(
+                // ▼▼▼【変更】ボタンのレイアウトと種類 ▼▼▼
+                Wrap(
+                  spacing: 12.0,
+                  runSpacing: 12.0,
+                  alignment: WrapAlignment.center,
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _saveAsTemplate,
-                        icon: const Icon(Icons.save_as),
-                        label: const Text('テンプレートとして保存'),
+                    // ★★★【追加】上書き保存ボタン (テンプレート読み込み時のみ表示) ★★★
+                    if (widget.templatePath != null)
+                      ElevatedButton.icon(
+                        onPressed: _overwriteTemplate,
+                        icon: const Icon(Icons.save),
+                        label: const Text('上書き保存'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange.shade700,
+                          foregroundColor: Colors.white,
+                        ),
                       ),
+                    
+                    OutlinedButton.icon(
+                      onPressed: _saveAsTemplate,
+                      icon: const Icon(Icons.save_as),
+                      label: const Text('テンプレートとして保存'),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: _printPreview,
-                        icon: const Icon(Icons.print),
-                        label: const Text('この内容で印刷プレビュー'),
+
+                    FilledButton.icon(
+                      onPressed: _printPreview,
+                      icon: const Icon(Icons.print),
+                      label: const Text('履歴に保存して印刷'),
+                       style: FilledButton.styleFrom(
+                        backgroundColor: Colors.green,
                       ),
                     ),
                   ],
                 ),
+                // ▲▲▲ ここまで変更 ▲▲▲
                 const SizedBox(height: 24),
               ],
             ),
@@ -668,17 +752,12 @@ class DrawingPreviewPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // レイヤーを保存し、BlendMode.clear（消しゴム）が正しく機能するようにする
     canvas.saveLayer(Rect.fromLTWH(0, 0, size.width, size.height), Paint());
-
-    // 描画ズレを補正
     if (sourceSize == null || (sourceSize!.width == 0 || sourceSize!.height == 0)) {
-      // 古いデータ or 不正なデータの場合は、とりあえず描画
       for (final element in elements) {
         element.draw(canvas, size);
       }
     } else {
-      // 背景画像と同じように `BoxFit.contain` のロジックで描画内容をスケーリング
       final FittedSizes fittedSizes = applyBoxFit(BoxFit.contain, sourceSize!, size);
       final Rect destRect = Alignment.center.inscribe(fittedSizes.destination, Rect.fromLTWH(0, 0, size.width, size.height));
       final double scale = destRect.width / sourceSize!.width;
@@ -688,7 +767,6 @@ class DrawingPreviewPainter extends CustomPainter {
       canvas.translate(translate.dx, translate.dy);
       canvas.scale(scale, scale);
 
-      // 変換後のキャンバスに描画
       for (final element in elements) {
         element.draw(canvas, sourceSize!);
       }

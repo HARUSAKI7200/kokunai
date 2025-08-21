@@ -9,7 +9,7 @@ import 'edit_form_page.dart';
 import 'models.dart';
 import 'pdf_generator.dart';
 import 'storage.dart';
-import 'template_list_screen.dart'; // 👈 追加
+import 'template_list_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,7 +24,7 @@ class App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '工注票（A5×2, A4出力）',
+      title: '工注票アプリ',
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: Colors.indigo,
@@ -45,7 +45,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  List<FormRecord> list = [];
+  List<FormRecord> _historyList = [];
+  bool _isLoading = true;
   final df = DateFormat('yyyy/MM/dd');
 
   @override
@@ -55,79 +56,75 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _reload() async {
+    setState(() => _isLoading = true);
     final s = StorageService();
     final data = await s.loadAll();
     setState(() {
-      list = data..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      _historyList = data..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      _isLoading = false;
     });
   }
 
+  // ▼▼▼【変更】ここから下の3つのメソッドを変更 ▼▼▼
   Future<void> _add() async {
-    final ok = await Navigator.of(context)
-        .push<bool>(MaterialPageRoute(builder: (_) => const EditFormPage()));
-    if (ok == true) _reload();
+    // 編集画面から戻ってきたら、変更があった場合に備えて必ずリロード
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const EditFormPage())
+    );
+    _reload();
   }
 
-  // ▼▼▼ このメソッドを修正 ▼▼▼
   Future<void> _addFromTemplate() async {
-    // TemplateListScreenに遷移し、結果(trueならリロード)を待つ
-    final ok = await Navigator.of(context).push<bool>(
+    // テンプレート選択画面から戻ってきたら、変更があった場合に備えて必ずリロード
+    await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const TemplateListScreen()),
     );
-    // テンプレートから作成・保存されたらリストをリロード
-    if (ok == true) {
-      _reload();
-    }
-  }
-  // ▲▲▲ ここまで修正 ▲▲▲
-
-  Future<void> _edit(FormRecord r) async {
-    final ok = await Navigator.of(context)
-        .push<bool>(MaterialPageRoute(builder: (_) => EditFormPage(initial: r)));
-    if (ok == true) _reload();
+    _reload();
   }
 
-  Future<void> _delete(FormRecord r) async {
-    final yes = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('削除しますか？'),
-        content: Text('「${r.productName}」(${df.format(r.shipDate)}) を削除します。'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('キャンセル')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('削除')),
-        ],
-      ),
+  Future<void> _addFromHistory(FormRecord historyRecord) async {
+    final newRecord = historyRecord.copyWith(
+      id: const Uuid().v4(),
+      shipDate: DateTime.now(),
+      slipNo: '',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
     );
-    if (yes == true) {
-      await StorageService().delete(r.id);
-      _reload();
-    }
+    // 編集画面から戻ってきたら、変更があった場合に備えて必ずリロード
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => EditFormPage(initial: newRecord))
+    );
+    _reload();
   }
+  // ▲▲▲ ここまで変更 ▲▲▲
 
-  Future<void> _deleteAll() async {
-    if (list.isEmpty) {
+  Future<void> _resetHistory() async {
+     if (_historyList.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('削除できる履歴がありません。')));
       return;
     }
-    final yes = await showDialog<bool>(
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('すべての履歴を削除しますか？'),
         content: const Text('この操作は元に戻せません。本当によろしいですか？'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('キャンセル')),
-          FilledButton(
+          TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('すべて削除'),
+            child: const Text('すべて削除', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
-    if (yes == true) {
+    if (confirmed == true) {
       await StorageService().deleteAll();
       _reload();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('作成履歴をリセットしました。'), backgroundColor: Colors.green),
+        );
+      }
     }
   }
 
@@ -142,80 +139,116 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final dfTime = DateFormat('yyyy/MM/dd HH:mm');
     return Scaffold(
       appBar: AppBar(
-        title: const Text('工注票 一覧'),
+        title: const Text('工注票アプリ ホーム'),
         actions: [
           IconButton(
-            tooltip: '全履歴を削除',
-            onPressed: _deleteAll,
-            icon: const Icon(Icons.delete_sweep_outlined),
+            icon: const Icon(Icons.refresh),
+            onPressed: _reload,
+            tooltip: '履歴を再読み込み',
           ),
         ],
       ),
-      body: SafeArea(
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _add,
-                      icon: const Icon(Icons.add),
-                      label: const Text('新規作成'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _addFromTemplate,
-                      icon: const Icon(Icons.file_open_outlined), // アイコンを変更
-                      label: const Text('テンプレートから作成'),
-                    ),
-                  ),
-                ],
+            ElevatedButton.icon(
+              icon: const Icon(Icons.add_circle_outline),
+              label: const Text('新規工注票を作成'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                textStyle: const TextStyle(fontSize: 18),
               ),
+              onPressed: _add,
             ),
-            const Divider(height: 1),
-            Expanded(
-              child: list.isEmpty
-                  ? const Center(child: Text('データがありません。「新規作成」から作成してください。'))
-                  : ListView.separated(
-                      itemCount: list.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, i) {
-                        final r = list[i];
-                        final subtitle = [
-                          '出荷日:${df.format(r.shipDate)}',
-                          if (r.productNo.isNotEmpty) '製番:${r.productNo}',
-                        ].join('  ');
-                        return ListTile(
-                          title: Text(r.productName.isEmpty ? '（品名未入力）' : r.productName),
-                          subtitle: Text('$subtitle\n更新:${dfTime.format(r.updatedAt)}'),
-                          isThreeLine: true,
-                          onTap: () => _edit(r),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: 'この1件を出力',
-                                onPressed: () => _exportPdf([r]),
-                                icon: const Icon(Icons.picture_as_pdf),
-                              ),
-                              IconButton(
-                                tooltip: '削除',
-                                onPressed: () => _delete(r),
-                                icon: const Icon(Icons.delete_outline),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.folder_open_outlined),
+              label: const Text('テンプレートから作成'),
+               style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                textStyle: const TextStyle(fontSize: 18),
+                backgroundColor: Colors.teal,
+              ),
+              onPressed: _addFromTemplate,
+            ),
+            const SizedBox(height: 24),
+
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.history, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Text(
+                      '最近作成した工注票',
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
+                  ],
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.delete_sweep, size: 20),
+                  label: const Text('履歴をリセット'),
+                  onPressed: _resetHistory,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    textStyle: const TextStyle(fontSize: 12)
+                  ),
+                ),
+              ],
+            ),
+            const Divider(),
+
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _historyList.isEmpty
+                      ? Center(
+                          child: Text(
+                            '作成履歴はありません。\n「印刷プレビュー」を押すと履歴に保存されます。',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: _historyList.length,
+                          itemBuilder: (context, index) {
+                            final historyData = _historyList[index];
+                            return Card(
+                              margin: const EdgeInsets.symmetric(vertical: 6.0),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            '出荷日: ${df.format(historyData.shipDate)}',
+                                            style: const TextStyle(fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          if (historyData.productNo.isNotEmpty) Text('製番: ${historyData.productNo}'),
+                                          Text('品名: ${historyData.productName.isEmpty ? '(品名未入力)' : historyData.productName}'),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton(
+                                      onPressed: () => _addFromHistory(historyData),
+                                      child: const Text('この内容で作成'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
             ),
           ],
         ),

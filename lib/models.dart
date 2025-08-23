@@ -158,9 +158,11 @@ class FormRecord {
   String productNo;
   String productName;
   double? weightKg;
+  double? weightGrossKg; // 👈 【追加】Gross重量
   PackageStyle packageStyle;
   ProductMaterialType materialType;
-  
+  int? quantity;
+
   String? insideLength;
   String? insideWidth;
   String? insideHeight;
@@ -200,10 +202,12 @@ class FormRecord {
     required this.productNo,
     required this.productName,
     this.weightKg,
+    this.weightGrossKg, // 👈 【追加】
     this.packageStyle = PackageStyle.yokoshita,
     this.materialType = ProductMaterialType.domestic,
     this.floorPlate = FloorPlateType.none,
     this.getaOrSuri = GetaOrSuriType.geta,
+    this.quantity,
     this.insideLength,
     this.insideWidth,
     this.insideHeight,
@@ -253,8 +257,10 @@ class FormRecord {
     String? productNo,
     String? productName,
     double? weightKg,
+    double? weightGrossKg, // 👈 【追加】
     PackageStyle? packageStyle,
     ProductMaterialType? materialType,
+    int? quantity,
     String? insideLength,
     String? insideWidth,
     String? insideHeight,
@@ -291,8 +297,10 @@ class FormRecord {
       productNo: productNo ?? this.productNo,
       productName: productName ?? this.productName,
       weightKg: weightKg ?? this.weightKg,
+      weightGrossKg: weightGrossKg ?? this.weightGrossKg, // 👈 【追加】
       packageStyle: packageStyle ?? this.packageStyle,
       materialType: materialType ?? this.materialType,
+      quantity: quantity ?? this.quantity,
       insideLength: insideLength ?? this.insideLength,
       insideWidth: insideWidth ?? this.insideWidth,
       insideHeight: insideHeight ?? this.insideHeight,
@@ -331,10 +339,12 @@ class FormRecord {
         'productNo': productNo,
         'productName': productName,
         'weightKg': weightKg,
+        'weightGrossKg': weightGrossKg, // 👈 【追加】
         'packageStyle': packageStyle.index,
         'materialType': materialType.index,
         'floorPlate': floorPlate.index,
         'getaOrSuri': getaOrSuri.index,
+        'quantity': quantity,
         'insideLength': insideLength,
         'insideWidth': insideWidth,
         'insideHeight': insideHeight,
@@ -370,10 +380,12 @@ class FormRecord {
         productNo: j['productNo'] as String? ?? '',
         productName: j['productName'] as String? ?? '',
         weightKg: (j['weightKg'] as num?)?.toDouble(),
+        weightGrossKg: (j['weightGrossKg'] as num?)?.toDouble(), // 👈 【追加】
         packageStyle: PackageStyle.values[(j['packageStyle'] as num).toInt()],
         materialType: ProductMaterialType.values[(j['materialType'] as num).toInt()],
         floorPlate: FloorPlateType.values[(j['floorPlate'] as num).toInt()],
         getaOrSuri: GetaOrSuriType.values[(j['getaOrSuri'] as num).toInt()],
+        quantity: (j['quantity'] as num?)?.toInt(),
         insideLength: j['insideLength'] as String?,
         insideWidth: j['insideWidth'] as String?,
         insideHeight: j['insideHeight'] as String?,

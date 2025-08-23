@@ -388,7 +388,8 @@ class _EditFormPageState extends State<EditFormPage> {
        return;
      }
 
-    final bytes = await PdfGenerator().buildA4WithTwoA5([rec]);
+    // 👈【修正】呼び出すメソッド名を buildPdf に変更
+    final bytes = await PdfGenerator().buildPdf([rec]);
     await Printing.layoutPdf(onLayout: (format) async => Uint8List.fromList(bytes));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('作成履歴に保存しました。'), backgroundColor: Colors.green),

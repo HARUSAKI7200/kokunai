@@ -133,7 +133,8 @@ class _HomePageState extends State<HomePage> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('出力対象がありません。')));
       return;
     }
-    final bytes = await PdfGenerator().buildA4WithTwoA5(targets);
+    // 👈【修正】呼び出すメソッド名を buildPdf に変更
+    final bytes = await PdfGenerator().buildPdf(targets);
     await Printing.layoutPdf(onLayout: (format) async => Uint8List.fromList(bytes));
   }
 

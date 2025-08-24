@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-enum DrawingTool { pen, line, rectangle, eraser, dimension, text }
+enum DrawingTool { pen, line, rectangle, eraser, dimension, text, crossedRectangle } // 👈 【追加】
 
 // DrawingElementクラス群
 abstract class DrawingElement {
@@ -24,6 +24,9 @@ abstract class DrawingElement {
         return StraightLine.fromJson(json);
       case 'rect':
         return Rectangle.fromJson(json);
+      // ▼▼▼ 【追加】 'crossed_rect' の分岐を追加 ▼▼▼
+      case 'crossed_rect':
+        return CrossedRectangle.fromJson(json);
       case 'dimension':
         return DimensionLine.fromJson(json);
       case 'text':
@@ -170,6 +173,59 @@ class Rectangle extends DrawingElement {
         'paint': {'color': paint.color.value, 'strokeWidth': paint.strokeWidth},
       };
   factory Rectangle.fromJson(Map<String, dynamic> json) => Rectangle(
+        id: json['id'],
+        start: Offset(
+            json['start']['dx'].toDouble(), json['start']['dy'].toDouble()),
+        end: Offset(json['end']['dx'].toDouble(), json['end']['dy'].toDouble()),
+        paint: Paint()
+          ..color = Color(json['paint']['color'])
+          ..strokeWidth = json['paint']['strokeWidth']
+          ..style = PaintingStyle.stroke,
+      );
+  @override
+  bool contains(Offset point) => rect.contains(point);
+  @override
+  void move(Offset delta) {
+    start += delta;
+    end += delta;
+  }
+}
+
+// ▼▼▼ 【追加】バツ印付きの四角形クラス ▼▼▼
+class CrossedRectangle extends DrawingElement {
+  Offset start;
+  Offset end;
+  CrossedRectangle(
+      {required super.id,
+      required this.start,
+      required this.end,
+      required super.paint});
+  Rect get rect => Rect.fromPoints(start, end);
+
+  @override
+  void draw(Canvas canvas, Size canvasSize) {
+    // 1. 外枠の四角形を描画
+    canvas.drawRect(rect, paint);
+    // 2. 左上から右下への線を描画
+    canvas.drawLine(rect.topLeft, rect.bottomRight, paint);
+    // 3. 右上から左下への線を描画
+    canvas.drawLine(rect.topRight, rect.bottomLeft, paint);
+  }
+
+  @override
+  CrossedRectangle clone() =>
+      CrossedRectangle(id: id, start: start, end: end, paint: Paint.from(paint));
+
+  @override
+  Map<String, dynamic> toJson() => {
+        'type': 'crossed_rect',
+        'id': id,
+        'start': {'dx': start.dx, 'dy': start.dy},
+        'end': {'dx': end.dx, 'dy': end.dy},
+        'paint': {'color': paint.color.value, 'strokeWidth': paint.strokeWidth},
+      };
+
+  factory CrossedRectangle.fromJson(Map<String, dynamic> json) => CrossedRectangle(
         id: json['id'],
         start: Offset(
             json['start']['dx'].toDouble(), json['start']['dy'].toDouble()),

@@ -18,7 +18,7 @@ class PdfGenerator {
         await rootBundle.load("assets/fonts/NotoSansJP-Regular.ttf");
     final ttf = pw.Font.ttf(fontData);
 
-    // 【修正】背景画像を事前に読み込む
+    // 背景画像を事前に読み込む
     final yokoshitaImage = pw.MemoryImage(
       (await rootBundle.load('assets/images/国内工注票腰下図面.jpg'))
           .buffer
@@ -44,7 +44,7 @@ class PdfGenerator {
           pageFormat: pdf.PdfPageFormat.a4,
           margin: const pw.EdgeInsets.all(28),
           build: (ctx) {
-            // 【修正】読み込んだ画像をビルドメソッドに渡す
+            // 読み込んだ画像をビルドメソッドに渡す
             return _buildPageContent(ctx, record, ttf,
                 yokoshitaImage, hiraichiImage, subzaiImage);
           },
@@ -54,7 +54,7 @@ class PdfGenerator {
     return await doc.save();
   }
 
-  // 【修正】引数に各画像オブジェクトを追加
+  // 引数に各画像オブジェクトを追加
   pw.Widget _buildPageContent(
       pw.Context ctx,
       FormRecord r,
@@ -67,10 +67,10 @@ class PdfGenerator {
       children: [
         _buildHeader(r),
         pw.SizedBox(height: 12),
-        // 【修正】描画メソッドに画像オブジェクトを渡す
+        // 描画メソッドに画像オブジェクトを渡す
         _buildDrawings(ctx, r, font, yokoshitaImage, hiraichiImage, subzaiImage),
         pw.SizedBox(height: 12),
-        // 【修正】部材情報と備考欄を左右に分割するレイアウトに変更
+        // 部材情報と備考欄を左右に分割するレイアウトに変更
         pw.Expanded(
           child: pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -108,7 +108,7 @@ class PdfGenerator {
                         ),
                         child: pw.Padding(
                           padding: const pw.EdgeInsets.all(4),
-                          child: pw.Text(''), // フリーテキスト用の空のボックス
+                          child: pw.Text(r.remarks ?? ''),
                         ),
                       ),
                     ),
@@ -123,14 +123,14 @@ class PdfGenerator {
   }
 
   pw.Widget _buildHeader(FormRecord r) {
-    final shipDateFormat = DateFormat('yyyy/MM/dd');
+    final shipDateFormat = DateFormat('MM/dd');
     final insideDim = [r.insideLength, r.insideWidth, r.insideHeight]
         .where((s) => s != null && s.isNotEmpty)
         .join(' x ');
     final outsideDim = [r.outsideLength, r.outsideWidth, r.outsideHeight]
         .where((s) => s != null && s.isNotEmpty)
         .join(' x ');
-
+    
     return pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
@@ -172,66 +172,53 @@ class PdfGenerator {
               border: pw.TableBorder.all(width: 0.6),
               defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
               columnWidths: const {
-                0: pw.IntrinsicColumnWidth(),
-                1: pw.FlexColumnWidth(1),
-                2: pw.IntrinsicColumnWidth(),
-                3: pw.FlexColumnWidth(1),
-                4: pw.IntrinsicColumnWidth(),
-                5: pw.FlexColumnWidth(1),
-                6: pw.IntrinsicColumnWidth(),
-                7: pw.FlexColumnWidth(1),
+                0: pw.IntrinsicColumnWidth(), 1: pw.FlexColumnWidth(1),
+                2: pw.IntrinsicColumnWidth(), 3: pw.FlexColumnWidth(1),
+                4: pw.IntrinsicColumnWidth(), 5: pw.FlexColumnWidth(1),
+                6: pw.IntrinsicColumnWidth(), 7: pw.FlexColumnWidth(1),
               },
               children: [
                 pw.TableRow(children: [
-                  _labelCell('製番'),
-                  _valueCell(r.productNo),
-                  _labelCell('品名'),
-                  _valueCell(r.productName),
-                  _labelCell('荷姿'),
-                  _valueCell(packageStyleLabel(r.packageStyle)),
-                  _labelCell('材質'),
-                  _valueCell(productMaterialTypeLabel(r.materialType)),
+                  _labelCell('製番'), _valueCell(r.productNo),
+                  _labelCell('品名'), _valueCell(r.productName),
+                  _labelCell('荷姿'), _valueCell(packageStyleLabel(r.packageStyle)),
+                  _labelCell('材質'), _valueCell(productMaterialTypeLabel(r.materialType)),
                 ]),
               ]),
           pw.Table(
-              border: pw.TableBorder.all(width: 0.6),
-              defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
-              columnWidths: const {
-                0: pw.IntrinsicColumnWidth(),
-                1: pw.FlexColumnWidth(1),
-                2: pw.IntrinsicColumnWidth(),
-                3: pw.FlexColumnWidth(1)
-              },
-              children: [
-                pw.TableRow(children: [
-                  _labelCell('内寸'),
-                  _bigValueCell(insideDim),
-                  _labelCell('外寸'),
-                  _bigValueCell(outsideDim)
-                ])
-              ]),
+            border: pw.TableBorder.all(width: 0.6),
+            defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+            columnWidths: const {
+              0: pw.IntrinsicColumnWidth(), 1: pw.FlexColumnWidth(2.5),
+              2: pw.IntrinsicColumnWidth(), 3: pw.FlexColumnWidth(2.5),
+              4: pw.IntrinsicColumnWidth(), 5: pw.FlexColumnWidth(1),
+            },
+            children: [
+              pw.TableRow(children: [
+                _labelCell('内寸'), _bigValueCell(insideDim),
+                _labelCell('外寸'), _bigValueCell(outsideDim),
+                _labelCell('数量'), _valueCell(r.quantity != null ? '${r.quantity} C/S' : ''),
+              ])
+            ]
+          ),
           pw.Table(
               border: pw.TableBorder.all(width: 0.6),
               defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
               columnWidths: const {
-                0: pw.IntrinsicColumnWidth(),
-                1: pw.FlexColumnWidth(1),
-                2: pw.IntrinsicColumnWidth(),
-                3: pw.FlexColumnWidth(1)
+                0: pw.IntrinsicColumnWidth(), 1: pw.FlexColumnWidth(1),
+                2: pw.IntrinsicColumnWidth(), 3: pw.FlexColumnWidth(1)
               },
               children: [
                 pw.TableRow(children: [
                   _labelCell('重量(net)'),
                   _valueCell(r.weightKg != null ? '${r.weightKg} kg' : ''),
                   _labelCell('重量(gross)'),
-                  _valueCell(
-                      r.weightGrossKg != null ? '${r.weightGrossKg} kg' : ''),
+                  _valueCell(r.weightGrossKg != null ? '${r.weightGrossKg} kg' : ''),
                 ])
               ]),
         ]);
   }
 
-  // 【修正】引数に各画像オブジェクトを追加
   pw.Widget _buildDrawings(
       pw.Context ctx,
       FormRecord r,
@@ -239,7 +226,6 @@ class PdfGenerator {
       pw.MemoryImage yokoshitaImage,
       pw.MemoryImage hiraichiImage,
       pw.MemoryImage subzaiImage) {
-    // 【修正】引数に画像オブジェクトを受け取るように変更
     pw.Widget drawingBox(
         String title, DrawingData? drawingData, pw.MemoryImage image) {
       return pw.Column(
@@ -254,7 +240,6 @@ class PdfGenerator {
               width: double.infinity,
               decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: pdf.PdfColors.grey, width: 0.5)),
-              // 【修正】CustomPaintのchildに背景画像を設定
               child: pw.CustomPaint(
                 child: pw.Image(image, fit: pw.BoxFit.contain),
                 painter: (canvas, size) {
@@ -272,7 +257,7 @@ class PdfGenerator {
     }
 
     return pw.SizedBox(
-      height: 300,
+      height: 280,
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
@@ -283,11 +268,12 @@ class PdfGenerator {
             flex: 2,
             child: pw.Column(children: [
               pw.Expanded(
-                  flex: 2,
+                  flex: 3,
                   child: drawingBox('側ツマ', r.hiraichiDrawing, hiraichiImage)),
               pw.SizedBox(height: 8),
               pw.Expanded(
-                  flex: 1, child: drawingBox('滑材', r.subzaiDrawing, subzaiImage)),
+                  flex: 2,
+                  child: drawingBox('滑材', r.subzaiDrawing, subzaiImage)),
             ]),
           ),
         ],
@@ -347,6 +333,24 @@ class PdfGenerator {
         canvas
           ..drawRect(rect.x, rect.y, rect.width, rect.height)
           ..strokePath();
+      // ▼▼▼ 【修正】CrossedRectangleの描画処理を修正 ▼▼▼
+      } else if (element is dc.CrossedRectangle) {
+        final topLeft = transform(element.rect.topLeft.dx, element.rect.topLeft.dy);
+        final topRight = transform(element.rect.topRight.dx, element.rect.topRight.dy);
+        final bottomLeft = transform(element.rect.bottomLeft.dx, element.rect.bottomLeft.dy);
+        final bottomRight = transform(element.rect.bottomRight.dx, element.rect.bottomRight.dy);
+
+        canvas
+          ..moveTo(topLeft.x, topLeft.y)
+          ..lineTo(topRight.x, topRight.y)
+          ..lineTo(bottomRight.x, bottomRight.y)
+          ..lineTo(bottomLeft.x, bottomLeft.y)
+          ..closePath() // 四角形を閉じる
+          ..moveTo(topLeft.x, topLeft.y)
+          ..lineTo(bottomRight.x, bottomRight.y)
+          ..moveTo(topRight.x, topRight.y)
+          ..lineTo(bottomLeft.x, bottomLeft.y)
+          ..strokePath();
       } else if (element is dc.DimensionLine) {
         final p1 = transform(element.start.dx, element.start.dy);
         final p2 = transform(element.end.dx, element.end.dy);
@@ -387,10 +391,46 @@ class PdfGenerator {
     const headerStyle =
         pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold);
     const cellStyle = pw.TextStyle(fontSize: 9);
+
+    final insideL = double.tryParse(r.insideLength ?? '');
+    final insideW = double.tryParse(r.insideWidth ?? '');
+
+    String getCalculatedLength(String partName, ComponentSpec spec) {
+      if (spec.lengthMm != null) return spec.lengthMm!.toInt().toString();
+
+      double? calculatedValue;
+
+      switch (r.packageStyle) {
+        case PackageStyle.sukashi:
+        case PackageStyle.mekura:
+          if (r.materialType == ProductMaterialType.domestic) {
+            if (partName == '滑材' && insideL != null) calculatedValue = insideL + 30;
+            if (partName == 'ゲタ' && insideL != null) calculatedValue = insideL + 60;
+            if (['H', '負荷材1', '負荷材2', '押さえ', '梁'].contains(partName)) return r.insideLength ?? '-';
+          } else {
+            if (partName == '滑材' && insideL != null) calculatedValue = insideL + 50;
+            if (partName == 'ゲタ' && insideL != null) calculatedValue = insideL + 100;
+            if (['H', '負荷材1', '負荷材2', '押さえ', '梁'].contains(partName)) return r.insideWidth ?? '-';
+          }
+          break;
+        case PackageStyle.yokoshita:
+          if (partName == '滑材') return r.insideLength ?? '-';
+          if (['ゲタ', 'H', '負荷材1', '負荷材2'].contains(partName)) return r.insideWidth ?? '-';
+          break;
+        default:
+          break;
+      }
+
+      if (calculatedValue != null) {
+        return calculatedValue.toInt().toString();
+      }
+      return '-';
+    }
+
     final List<List<String>> tableData = [];
     final components = {
       '滑材': r.subzai,
-      getaOrSuriTypeLabel(r.getaOrSuri): r.getaOrSuriSpec,
+      'ゲタ': r.getaOrSuriSpec,
       'H': r.h,
       '負荷材1': r.fukazai1,
       '負荷材2': r.fukazai2,
@@ -407,10 +447,16 @@ class PdfGenerator {
     components.forEach((name, spec) {
       if ((spec.count != null && spec.count! > 0) ||
           (spec.partName != null && spec.partName!.isNotEmpty)) {
+        
+        String displayName = (spec.partName?.isNotEmpty == true) ? spec.partName! : name;
+        if (name == 'ゲタ') {
+          displayName = getaOrSuriTypeLabel(r.getaOrSuri);
+        }
+        
         tableData.add([
-          spec.partName?.isNotEmpty == true ? spec.partName! : name,
+          displayName,
           spec.yobisun != null ? yobisunLabel(spec.yobisun!) : '-',
-          spec.lengthMm?.toString() ?? '-',
+          getCalculatedLength(name, spec),
           spec.count?.toString() ?? '-',
         ]);
       }
@@ -442,11 +488,10 @@ class PdfGenerator {
       );
 
   pw.Widget _valueCell(String text) => pw.Container(
-        width: 60,
         padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         child: pw.Text(text, style: const pw.TextStyle(fontSize: 10)),
       );
-
+  
   pw.Widget _bigValueCell(String text) => pw.Container(
         padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         constraints: const pw.BoxConstraints(minHeight: 17),

@@ -1,3 +1,4 @@
+// lib/drawing_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:ui' as ui;
@@ -30,8 +31,11 @@ class _DrawingPageState extends State<DrawingPage> {
   DrawingElement? _movingElement;
   Offset _panStartOffset = Offset.zero;
 
-  static const double _rectangleWidth = 30.0;
-  static const double _rectangleHeight = 30.0;
+  // ▼▼▼ 【修正】四角形と四角形バツのサイズを分離 ▼▼▼
+  static const double _rectangleWidth = 56.0;
+  static const double _rectangleHeight = 20.0;
+  static const double _crossedRectangleWidth = 56.0;
+  static const double _crossedRectangleHeight = 56.0;
 
   Rect? _imageBounds;
   late Image _backgroundImage;
@@ -108,11 +112,24 @@ class _DrawingPageState extends State<DrawingPage> {
             end: pos,
             paint: _createPaintForTool()));
         break;
+      // ▼▼▼ 【修正】四角形のサイズ指定を変更 ▼▼▼
       case DrawingTool.rectangle:
         _previewElementNotifier.value = Rectangle(
           id: 0,
           start: Offset(pos.dx - _rectangleWidth, pos.dy),
           end: Offset(pos.dx, pos.dy + _rectangleHeight),
+          paint: Paint()
+            ..color = Colors.blue.withOpacity(0.5)
+            ..strokeWidth = 2.0
+            ..style = PaintingStyle.stroke,
+        );
+        return;
+      // ▼▼▼ 【修正】四角形バツのサイズ指定を変更 ▼▼▼
+      case DrawingTool.crossedRectangle:
+        _previewElementNotifier.value = CrossedRectangle(
+          id: 0,
+          start: Offset(pos.dx - _crossedRectangleWidth, pos.dy),
+          end: Offset(pos.dx, pos.dy + _crossedRectangleHeight),
           paint: Paint()
             ..color = Colors.blue.withOpacity(0.5)
             ..strokeWidth = 2.0
@@ -171,6 +188,16 @@ class _DrawingPageState extends State<DrawingPage> {
       }
       return;
     }
+    
+    if (_selectedTool == DrawingTool.crossedRectangle) {
+      final currentPreview = _previewElementNotifier.value;
+      if (currentPreview is CrossedRectangle) {
+        currentPreview.start = Offset(pos.dx - _crossedRectangleWidth, pos.dy);
+        currentPreview.end = Offset(pos.dx, pos.dy + _crossedRectangleHeight);
+        _previewElementNotifier.value = currentPreview.clone();
+      }
+      return;
+    }
 
     final currentElements = _elementsNotifier.value;
     if (currentElements.isNotEmpty &&
@@ -203,6 +230,21 @@ class _DrawingPageState extends State<DrawingPage> {
       }
       return;
     }
+
+    if (_selectedTool == DrawingTool.crossedRectangle) {
+      final currentPreview = _previewElementNotifier.value;
+      if (currentPreview is CrossedRectangle) {
+        final finalRect = CrossedRectangle(
+          id: DateTime.now().millisecondsSinceEpoch,
+          start: currentPreview.start,
+          end: currentPreview.end,
+          paint: _createPaintForTool(),
+        );
+        _elementsNotifier.value = [..._elementsNotifier.value, finalRect];
+        _previewElementNotifier.value = null;
+      }
+      return;
+    }
   }
 
   void _onTapCanvas(TapUpDetails details) {
@@ -212,7 +254,7 @@ class _DrawingPageState extends State<DrawingPage> {
 
     final tappedPoint = _clampPosition(details.localPosition);
 
-    if (_selectedTool == DrawingTool.rectangle) return;
+    if (_selectedTool == DrawingTool.rectangle || _selectedTool == DrawingTool.crossedRectangle) return;
 
     if (_selectedTool == DrawingTool.text) {
       _addNewText(tappedPoint);
@@ -239,6 +281,7 @@ class _DrawingPageState extends State<DrawingPage> {
           ..color = Colors.black
           ..strokeWidth = 2.0;
       case DrawingTool.rectangle:
+      case DrawingTool.crossedRectangle:
         return Paint()
           ..color = Colors.black
           ..strokeWidth = 2.0
@@ -288,10 +331,9 @@ class _DrawingPageState extends State<DrawingPage> {
 
     final offset = _imageBounds!.topLeft;
 
-    // 座標を左上からの相対位置に変換した新しい要素のリストを作成
     final elementsToSave = _elementsNotifier.value.map((element) {
-      final clone = element.clone(); // 現在の状態を変更しないようにクローン
-      clone.move(-offset); // 全ての座標を移動
+      final clone = element.clone();
+      clone.move(-offset);
       return clone;
     }).toList();
 
@@ -300,8 +342,8 @@ class _DrawingPageState extends State<DrawingPage> {
     final drawingData = DrawingData(
       elementsAsJson,
       imageKey: widget.backgroundImage,
-      sourceWidth: _imageBounds!.width, // 描画領域の幅を保存
-      sourceHeight: _imageBounds!.height, // 描画領域の高さを保存
+      sourceWidth: _imageBounds!.width,
+      sourceHeight: _imageBounds!.height,
     );
     Navigator.of(context).pop(drawingData);
   }
@@ -328,12 +370,14 @@ class _DrawingPageState extends State<DrawingPage> {
           preferredSize: const Size.fromHeight(60.0),
           child: Container(
             color: Colors.grey[200],
+            // ▼▼▼ 【修正】ツールボタンを均等割り付けに変更 ▼▼▼
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildToolButton(DrawingTool.pen, Icons.edit, '自由線'),
                 _buildToolButton(DrawingTool.line, Icons.show_chart, '直線'),
                 _buildToolButton(DrawingTool.rectangle, Icons.crop_square, '四角'),
+                _buildToolButton(DrawingTool.crossedRectangle, Icons.close, '四角バツ'),
                 _buildToolButton(DrawingTool.dimension, Icons.straighten, '寸法線'),
                 _buildToolButton(DrawingTool.text, Icons.text_fields, 'テキスト'),
                 _buildToolButton(
@@ -393,6 +437,7 @@ class _DrawingPageState extends State<DrawingPage> {
 
   Widget _buildToolButton(DrawingTool tool, IconData icon, String label) {
     final isSelected = _selectedTool == tool;
+    // ▼▼▼ 【修正】Expandedでラップして均等割りを実現 ▼▼▼
     return Expanded(
       child: InkWell(
         onTap: () {

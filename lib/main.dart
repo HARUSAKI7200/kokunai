@@ -47,7 +47,8 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   List<FormRecord> _historyList = [];
   bool _isLoading = true;
-  final df = DateFormat('yyyy/MM/dd');
+  // 👈 【修正】日付のフォーマットを変更
+  final df = DateFormat('MM/dd');
 
   @override
   void initState() {
@@ -65,9 +66,7 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  // ▼▼▼【変更】ここから下の3つのメソッドを変更 ▼▼▼
   Future<void> _add() async {
-    // 編集画面から戻ってきたら、変更があった場合に備えて必ずリロード
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const EditFormPage())
     );
@@ -75,7 +74,6 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _addFromTemplate() async {
-    // テンプレート選択画面から戻ってきたら、変更があった場合に備えて必ずリロード
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const TemplateListScreen()),
     );
@@ -90,13 +88,11 @@ class _HomePageState extends State<HomePage> {
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
-    // 編集画面から戻ってきたら、変更があった場合に備えて必ずリロード
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => EditFormPage(initial: newRecord))
     );
     _reload();
   }
-  // ▲▲▲ ここまで変更 ▲▲▲
 
   Future<void> _resetHistory() async {
      if (_historyList.isEmpty) {
@@ -133,7 +129,6 @@ class _HomePageState extends State<HomePage> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('出力対象がありません。')));
       return;
     }
-    // 👈【修正】呼び出すメソッド名を buildPdf に変更
     final bytes = await PdfGenerator().buildPdf(targets);
     await Printing.layoutPdf(onLayout: (format) async => Uint8List.fromList(bytes));
   }
@@ -210,7 +205,7 @@ class _HomePageState extends State<HomePage> {
                   : _historyList.isEmpty
                       ? Center(
                           child: Text(
-                            '作成履歴はありません。\n「印刷プレビュー」を押すと履歴に保存されます。',
+                            '作成履歴はありません。\n「履歴に保存して印刷」を押すと履歴に保存されます。',
                             textAlign: TextAlign.center,
                             style: TextStyle(color: Colors.grey[600]),
                           ),

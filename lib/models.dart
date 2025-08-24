@@ -1,3 +1,4 @@
+// lib/models.dart
 import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
@@ -56,7 +57,8 @@ String getaOrSuriTypeLabel(GetaOrSuriType s) {
   }
 }
 
-enum Yobisun { gobu, hachibu, sho, goju, nisun, sansun, issun }
+// 👈 【修正】合板の選択肢を追加
+enum Yobisun { gobu, hachibu, sho, goju, nisun, sansun, issun, plywood9, plywood15, plywood20 }
 
 String yobisunLabel(Yobisun s) {
   switch (s) {
@@ -74,8 +76,43 @@ String yobisunLabel(Yobisun s) {
       return '三寸';
     case Yobisun.issun:
       return '一寸';
+    // 👈 【修正】合板のラベルを追加
+    case Yobisun.plywood9:
+      return '9mm (合板)';
+    case Yobisun.plywood15:
+      return '15mm (合板)';
+    case Yobisun.plywood20:
+      return '20mm (合板)';
   }
 }
+
+// 👈 【追加】呼び寸からmm単位の数値を取得するための拡張機能
+extension YobisunExtension on Yobisun {
+  double get mmValue {
+    switch (this) {
+      case Yobisun.gobu:
+      case Yobisun.hachibu:
+        return 15.0;
+      case Yobisun.sho:
+        return 40.0;
+      case Yobisun.goju:
+        return 50.0;
+      case Yobisun.nisun:
+        return 70.0;
+      case Yobisun.sansun:
+        return 85.0;
+      case Yobisun.issun:
+        return 25.0;
+      case Yobisun.plywood9:
+        return 9.0;
+      case Yobisun.plywood15:
+        return 15.0;
+      case Yobisun.plywood20:
+        return 20.0;
+    }
+  }
+}
+
 
 class ComponentSpec {
   double? widthMm;
@@ -158,7 +195,7 @@ class FormRecord {
   String productNo;
   String productName;
   double? weightKg;
-  double? weightGrossKg; // 👈 【追加】Gross重量
+  double? weightGrossKg;
   PackageStyle packageStyle;
   ProductMaterialType materialType;
   int? quantity;
@@ -189,6 +226,8 @@ class FormRecord {
   DrawingData? subzaiDrawing;
   DrawingData? yokoshitaDrawing;
   DrawingData? hiraichiDrawing;
+  
+  String? remarks;
 
   DateTime createdAt;
   DateTime updatedAt;
@@ -202,7 +241,7 @@ class FormRecord {
     required this.productNo,
     required this.productName,
     this.weightKg,
-    this.weightGrossKg, // 👈 【追加】
+    this.weightGrossKg,
     this.packageStyle = PackageStyle.yokoshita,
     this.materialType = ProductMaterialType.domestic,
     this.floorPlate = FloorPlateType.none,
@@ -230,6 +269,7 @@ class FormRecord {
     this.subzaiDrawing,
     this.yokoshitaDrawing,
     this.hiraichiDrawing,
+    this.remarks,
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : subzai = subzai ?? ComponentSpec(),
@@ -257,7 +297,7 @@ class FormRecord {
     String? productNo,
     String? productName,
     double? weightKg,
-    double? weightGrossKg, // 👈 【追加】
+    double? weightGrossKg,
     PackageStyle? packageStyle,
     ProductMaterialType? materialType,
     int? quantity,
@@ -285,6 +325,7 @@ class FormRecord {
     DrawingData? subzaiDrawing,
     DrawingData? yokoshitaDrawing,
     DrawingData? hiraichiDrawing,
+    String? remarks,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -297,7 +338,7 @@ class FormRecord {
       productNo: productNo ?? this.productNo,
       productName: productName ?? this.productName,
       weightKg: weightKg ?? this.weightKg,
-      weightGrossKg: weightGrossKg ?? this.weightGrossKg, // 👈 【追加】
+      weightGrossKg: weightGrossKg ?? this.weightGrossKg,
       packageStyle: packageStyle ?? this.packageStyle,
       materialType: materialType ?? this.materialType,
       quantity: quantity ?? this.quantity,
@@ -325,6 +366,7 @@ class FormRecord {
       subzaiDrawing: subzaiDrawing ?? this.subzaiDrawing,
       yokoshitaDrawing: yokoshitaDrawing ?? this.yokoshitaDrawing,
       hiraichiDrawing: hiraichiDrawing ?? this.hiraichiDrawing,
+      remarks: remarks ?? this.remarks,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -339,7 +381,7 @@ class FormRecord {
         'productNo': productNo,
         'productName': productName,
         'weightKg': weightKg,
-        'weightGrossKg': weightGrossKg, // 👈 【追加】
+        'weightGrossKg': weightGrossKg,
         'packageStyle': packageStyle.index,
         'materialType': materialType.index,
         'floorPlate': floorPlate.index,
@@ -367,6 +409,7 @@ class FormRecord {
         'subzaiDrawing': subzaiDrawing?.toJson(),
         'yokoshitaDrawing': yokoshitaDrawing?.toJson(),
         'hiraichiDrawing': hiraichiDrawing?.toJson(),
+        'remarks': remarks,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
       };
@@ -380,7 +423,7 @@ class FormRecord {
         productNo: j['productNo'] as String? ?? '',
         productName: j['productName'] as String? ?? '',
         weightKg: (j['weightKg'] as num?)?.toDouble(),
-        weightGrossKg: (j['weightGrossKg'] as num?)?.toDouble(), // 👈 【追加】
+        weightGrossKg: (j['weightGrossKg'] as num?)?.toDouble(),
         packageStyle: PackageStyle.values[(j['packageStyle'] as num).toInt()],
         materialType: ProductMaterialType.values[(j['materialType'] as num).toInt()],
         floorPlate: FloorPlateType.values[(j['floorPlate'] as num).toInt()],
@@ -414,6 +457,7 @@ class FormRecord {
         hiraichiDrawing: j['hiraichiDrawing'] != null
             ? DrawingData.fromJson(j['hiraichiDrawing'] as Map<String, dynamic>)
             : null,
+        remarks: j['remarks'] as String?,
         createdAt: DateTime.parse(j['createdAt'] as String),
         updatedAt: DateTime.parse(j['updatedAt'] as String),
       );

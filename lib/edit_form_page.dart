@@ -10,6 +10,7 @@ import 'package:printing/printing.dart';
 import 'pdf_generator.dart';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 
 import 'drawing_canvas.dart';
 
@@ -30,8 +31,14 @@ class EditFormPage extends StatefulWidget {
 class _EditFormPageState extends State<EditFormPage> {
   final _formKey = GlobalKey<FormState>();
   late FormRecord rec;
-  final df = DateFormat('yyyy/MM/dd');
+  // 👈 【修正】日付のフォーマットを変更
+  final df = DateFormat('MM/dd');
   final Map<String, GlobalKey> _drawingKeys = {};
+
+  // --- Controllers for Auto Calculation ---
+  final _outsideLController = TextEditingController();
+  final _outsideWController = TextEditingController();
+  final _outsideHController = TextEditingController();
 
   // --- Focus Nodes ---
   final _workPlaceNode = FocusNode();
@@ -51,7 +58,6 @@ class _EditFormPageState extends State<EditFormPage> {
   final _subzaiCountNode = FocusNode();
   final _getaYobisunNode = FocusNode();
   final _getaCountNode = FocusNode();
-  // ... 必要に応じて他の部材のFocusNodeも同様に追加 ...
 
   @override
   void initState() {
@@ -67,6 +73,14 @@ class _EditFormPageState extends State<EditFormPage> {
           productName: '',
         );
 
+    _outsideLController.text = rec.outsideLength ?? '';
+    _outsideWController.text = rec.outsideWidth ?? '';
+    _outsideHController.text = rec.outsideHeight ?? '';
+
+    _outsideLController.addListener(() => rec.outsideLength = _outsideLController.text);
+    _outsideWController.addListener(() => rec.outsideWidth = _outsideWController.text);
+    _outsideHController.addListener(() => rec.outsideHeight = _outsideHController.text);
+
     _drawingKeys['subzai'] = GlobalKey();
     _drawingKeys['yokoshita'] = GlobalKey();
     _drawingKeys['hiraichi'] = GlobalKey();
@@ -74,12 +88,16 @@ class _EditFormPageState extends State<EditFormPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FocusScope.of(context).requestFocus(_workPlaceNode);
       _generateAllPreviews();
+      _calculateOutsideDimensions();
     });
   }
 
   @override
   void dispose() {
-    // --- Focus Nodesをdispose ---
+    _outsideLController.dispose();
+    _outsideWController.dispose();
+    _outsideHController.dispose();
+
     _workPlaceNode.dispose();
     _instructorNode.dispose();
     _productNoNode.dispose();
@@ -99,8 +117,40 @@ class _EditFormPageState extends State<EditFormPage> {
     _getaCountNode.dispose();
     super.dispose();
   }
+  
+  // 👈 【修正】外寸の自動計算ロジックを拡張
+  void _calculateOutsideDimensions() {
+    final insideL = double.tryParse(rec.insideLength ?? '');
+    final insideW = double.tryParse(rec.insideWidth ?? '');
+    final insideH = double.tryParse(rec.insideHeight ?? '');
 
-  // (メソッド _generateAllPreviews, _generatePreview, _numOrNull は変更なし)
+    if (insideL == null || insideW == null || insideH == null) return;
+    
+    double? newOutsideL, newOutsideW, newOutsideH;
+
+    final getaMm = rec.getaOrSuriSpec.yobisun?.mmValue ?? 0;
+    final subzaiMm = rec.subzai.yobisun?.mmValue ?? 0;
+
+    // スカシ or メクラ
+    if (rec.packageStyle == PackageStyle.sukashi || rec.packageStyle == PackageStyle.mekura) {
+      if (rec.materialType == ProductMaterialType.domestic) {
+        newOutsideL = insideL + 60;
+        newOutsideW = insideW + 60;
+        newOutsideH = insideH + getaMm + subzaiMm + 40;
+      } else { // LVL or 熱処理
+        newOutsideL = insideL + 100;
+        newOutsideW = insideW + 100;
+        newOutsideH = insideH + getaMm + subzaiMm + 50;
+      }
+    }
+    // 他の荷姿の条件はここに追加
+
+    if (newOutsideL != null) _outsideLController.text = newOutsideL.toInt().toString();
+    if (newOutsideW != null) _outsideWController.text = newOutsideW.toInt().toString();
+    if (newOutsideH != null) _outsideHController.text = newOutsideH.toInt().toString();
+  }
+
+
   Future<void> _generateAllPreviews() async {
     await _generatePreview('subzai', rec.subzaiDrawing);
     await _generatePreview('yokoshita', rec.yokoshitaDrawing);
@@ -127,7 +177,6 @@ class _EditFormPageState extends State<EditFormPage> {
     }
   }
 
-
   T? _numOrNull<T extends num>(String? s) {
     if (s == null || s.trim().isEmpty) return null;
     final v = num.tryParse(s.replaceAll(',', ''));
@@ -146,9 +195,13 @@ class _EditFormPageState extends State<EditFormPage> {
     bool integer = false,
     FocusNode? focusNode,
     FocusNode? nextNode,
+    TextEditingController? controller,
+    // 👈 【追加】キーボードタイプを指定できるように
+    TextInputType? keyboardType,
   }) {
     return TextFormField(
-      initialValue: initial ?? '',
+      initialValue: controller == null ? (initial ?? '') : null,
+      controller: controller,
       focusNode: focusNode,
       decoration: InputDecoration(
         labelText: label,
@@ -156,7 +209,8 @@ class _EditFormPageState extends State<EditFormPage> {
         border: const OutlineInputBorder(),
         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      // 👈 【修正】キーボードタイプを適用
+      keyboardType: keyboardType ?? const TextInputType.numberWithOptions(decimal: true),
       validator: (v) {
         if (v == null || v.isEmpty) return null;
         final n = num.tryParse(v.replaceAll(',', ''));
@@ -180,16 +234,23 @@ class _EditFormPageState extends State<EditFormPage> {
     int maxLines = 1,
     FocusNode? focusNode,
     FocusNode? nextNode,
+    TextEditingController? controller,
+    // 👈 【追加】キーボードタイプを指定できるように
+    TextInputType? keyboardType,
   }) {
     return TextFormField(
-      initialValue: initial ?? '',
+      initialValue: controller == null ? (initial ?? '') : null,
+      controller: controller,
       focusNode: focusNode,
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        alignLabelWithHint: maxLines > 1,
       ),
       maxLines: maxLines,
+      // 👈 【修正】キーボードタイプを適用
+      keyboardType: keyboardType,
       onChanged: onChanged,
       onFieldSubmitted: (_) {
         if (nextNode != null) {
@@ -199,7 +260,7 @@ class _EditFormPageState extends State<EditFormPage> {
     );
   }
 
-  Widget _yobisunComponentEditor(String title, ComponentSpec c, {FocusNode? yobisunNode, FocusNode? countNode, FocusNode? nextNode}) {
+  Widget _yobisunComponentEditor(String title, ComponentSpec c, {FocusNode? yobisunNode, FocusNode? countNode, FocusNode? nextNode, void Function(Yobisun?)? onChanged}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: Column(
@@ -221,6 +282,7 @@ class _EditFormPageState extends State<EditFormPage> {
                       .toList(),
                   onChanged: (v) {
                      setState(() => c.yobisun = v);
+                     onChanged?.call(v);
                      if (countNode != null) {
                        FocusScope.of(context).requestFocus(countNode);
                      }
@@ -241,6 +303,7 @@ class _EditFormPageState extends State<EditFormPage> {
                   integer: true,
                   focusNode: countNode,
                   nextNode: nextNode,
+                  keyboardType: TextInputType.number,
                 ),
               ),
             ],
@@ -286,6 +349,7 @@ class _EditFormPageState extends State<EditFormPage> {
                   initial: c.lengthMm?.toString() ?? '',
                   onChanged: (v) => c.lengthMm = _numOrNull<double>(v),
                   suffix: 'mm',
+                  keyboardType: TextInputType.number,
                 ),
               ),
               const SizedBox(width: 8),
@@ -296,6 +360,7 @@ class _EditFormPageState extends State<EditFormPage> {
                   initial: c.count?.toString() ?? '',
                   onChanged: (v) => c.count = _numOrNull<int>(v),
                   integer: true,
+                  keyboardType: TextInputType.number,
                 ),
               ),
             ],
@@ -350,6 +415,7 @@ class _EditFormPageState extends State<EditFormPage> {
                   initial: c.lengthMm?.toString() ?? '',
                   onChanged: (v) => c.lengthMm = _numOrNull<double>(v),
                   suffix: 'mm',
+                  keyboardType: TextInputType.number,
                 ),
               ),
               const SizedBox(width: 8),
@@ -360,6 +426,7 @@ class _EditFormPageState extends State<EditFormPage> {
                   initial: c.count?.toString() ?? '',
                   onChanged: (v) => c.count = _numOrNull<int>(v),
                   integer: true,
+                  keyboardType: TextInputType.number,
                 ),
               ),
             ],
@@ -388,7 +455,6 @@ class _EditFormPageState extends State<EditFormPage> {
        return;
      }
 
-    // 👈【修正】呼び出すメソッド名を buildPdf に変更
     final bytes = await PdfGenerator().buildPdf([rec]);
     await Printing.layoutPdf(onLayout: (format) async => Uint8List.fromList(bytes));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -517,7 +583,6 @@ class _EditFormPageState extends State<EditFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 👈 【変更】セクションタイトルのスタイルを定義
     final styleSection = Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, fontSize: 18);
 
     return PopScope(
@@ -538,7 +603,6 @@ class _EditFormPageState extends State<EditFormPage> {
               children: [
                 Text('基本情報', style: styleSection),
                 const SizedBox(height: 8),
-                // 👈 【変更】基本情報を2行レイアウトに
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -565,7 +629,8 @@ class _EditFormPageState extends State<EditFormPage> {
                       ),
                     )),
                     const SizedBox(width: 8),
-                    Expanded(child: _textField(label: '作業場所', initial: rec.workPlace, onChanged: (v) => rec.workPlace = v, focusNode: _workPlaceNode, nextNode: _instructorNode)),
+                    // 👈 【修正】キーボードタイプをテンキーに変更
+                    Expanded(child: _textField(label: '作業場所', initial: rec.workPlace, onChanged: (v) => rec.workPlace = v, focusNode: _workPlaceNode, nextNode: _instructorNode, keyboardType: TextInputType.number)),
                     const SizedBox(width: 8),
                     Expanded(child: _textField(label: '指示者', initial: rec.instructor, onChanged: (v) => rec.instructor = v, focusNode: _instructorNode, nextNode: _productNoNode)),
                     const SizedBox(width: 8),
@@ -578,17 +643,16 @@ class _EditFormPageState extends State<EditFormPage> {
                   children: [
                      Expanded(child: _textField(label: '品名', initial: rec.productName, onChanged: (v) => rec.productName = v, focusNode: _productNameNode, nextNode: _weightNetNode)),
                      const SizedBox(width: 8),
-                     Expanded(child: _numField(label: '重量 (Net)', initial: rec.weightKg?.toString() ?? '', onChanged: (v) => rec.weightKg = _numOrNull<double>(v), suffix: 'kg', focusNode: _weightNetNode, nextNode: _weightGrossNode)),
+                     Expanded(child: _numField(label: '重量 (Net)', initial: rec.weightKg?.toString() ?? '', onChanged: (v) => rec.weightKg = _numOrNull<double>(v), suffix: 'kg', focusNode: _weightNetNode, nextNode: _weightGrossNode, keyboardType: TextInputType.number)),
                      const SizedBox(width: 8),
-                     Expanded(child: _numField(label: '重量 (Gross)', initial: rec.weightGrossKg?.toString() ?? '', onChanged: (v) => rec.weightGrossKg = _numOrNull<double>(v), suffix: 'kg', focusNode: _weightGrossNode, nextNode: _quantityNode)),
+                     Expanded(child: _numField(label: '重量 (Gross)', initial: rec.weightGrossKg?.toString() ?? '', onChanged: (v) => rec.weightGrossKg = _numOrNull<double>(v), suffix: 'kg', focusNode: _weightGrossNode, nextNode: _quantityNode, keyboardType: TextInputType.number)),
                      const SizedBox(width: 8),
-                     Expanded(child: _numField(label: '数量 (C/S)', initial: rec.quantity?.toString() ?? '', onChanged: (v) => rec.quantity = _numOrNull<int>(v), suffix: 'C/S', integer: true, focusNode: _quantityNode, nextNode: _insideLNode)),
+                     Expanded(child: _numField(label: '数量 (C/S)', initial: rec.quantity?.toString() ?? '', onChanged: (v) => rec.quantity = _numOrNull<int>(v), suffix: 'C/S', integer: true, focusNode: _quantityNode, nextNode: _insideLNode, keyboardType: TextInputType.number)),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text('寸法（長×幅×高）', style: styleSection), // 👈 【変更】スタイル適用
+                Text('寸法（長×幅×高）', style: styleSection),
                 const SizedBox(height: 8),
-                 // 👈 【変更】寸法入力のレイアウト変更
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -596,11 +660,12 @@ class _EditFormPageState extends State<EditFormPage> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Expanded(child: _textField(label: 'L', initial: rec.insideLength, onChanged: (v) => rec.insideLength = v, focusNode: _insideLNode, nextNode: _insideWNode)),
+                        // 👈 【修正】キーボードタイプをテンキーに変更 & 計算処理を呼び出し
+                        Expanded(child: _textField(label: 'L', initial: rec.insideLength, onChanged: (v) { rec.insideLength = v; _calculateOutsideDimensions(); }, focusNode: _insideLNode, nextNode: _insideWNode, keyboardType: TextInputType.number)),
                         const SizedBox(width: 8),
-                        Expanded(child: _textField(label: 'W', initial: rec.insideWidth, onChanged: (v) => rec.insideWidth = v, focusNode: _insideWNode, nextNode: _insideHNode)),
+                        Expanded(child: _textField(label: 'W', initial: rec.insideWidth, onChanged: (v) { rec.insideWidth = v; _calculateOutsideDimensions(); }, focusNode: _insideWNode, nextNode: _insideHNode, keyboardType: TextInputType.number)),
                         const SizedBox(width: 8),
-                        Expanded(child: _textField(label: 'H', initial: rec.insideHeight, onChanged: (v) => rec.insideHeight = v, focusNode: _insideHNode, nextNode: _outsideLNode)),
+                        Expanded(child: _textField(label: 'H', initial: rec.insideHeight, onChanged: (v) { rec.insideHeight = v; _calculateOutsideDimensions(); }, focusNode: _insideHNode, nextNode: _outsideLNode, keyboardType: TextInputType.number)),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -608,11 +673,12 @@ class _EditFormPageState extends State<EditFormPage> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Expanded(child: _textField(label: 'L', initial: rec.outsideLength, onChanged: (v) => rec.outsideLength = v, focusNode: _outsideLNode, nextNode: _outsideWNode)),
+                        // 👈 【修正】Controllerを使用
+                        Expanded(child: _textField(label: 'L', controller: _outsideLController, focusNode: _outsideLNode, nextNode: _outsideWNode, keyboardType: TextInputType.number)),
                         const SizedBox(width: 8),
-                        Expanded(child: _textField(label: 'W', initial: rec.outsideWidth, onChanged: (v) => rec.outsideWidth = v, focusNode: _outsideWNode, nextNode: _outsideHNode)),
+                        Expanded(child: _textField(label: 'W', controller: _outsideWController, focusNode: _outsideWNode, nextNode: _outsideHNode, keyboardType: TextInputType.number)),
                         const SizedBox(width: 8),
-                        Expanded(child: _textField(label: 'H', initial: rec.outsideHeight, onChanged: (v) => rec.outsideHeight = v, focusNode: _outsideHNode, nextNode: _subzaiYobisunNode)),
+                        Expanded(child: _textField(label: 'H', controller: _outsideHController, focusNode: _outsideHNode, nextNode: _subzaiYobisunNode, keyboardType: TextInputType.number)),
                       ],
                     ),
                   ],
@@ -626,7 +692,7 @@ class _EditFormPageState extends State<EditFormPage> {
                               title: Text(packageStyleLabel(e)),
                               value: e,
                               groupValue: rec.packageStyle,
-                              onChanged: (v) => setState(() => rec.packageStyle = v!),
+                              onChanged: (v) => setState(() { rec.packageStyle = v!; _calculateOutsideDimensions(); }),
                             ),
                           ))
                       .toList(),
@@ -640,7 +706,7 @@ class _EditFormPageState extends State<EditFormPage> {
                               title: Text(productMaterialTypeLabel(e)),
                               value: e,
                               groupValue: rec.materialType,
-                              onChanged: (v) => setState(() => rec.materialType = v!),
+                              onChanged: (v) => setState(() { rec.materialType = v!; _calculateOutsideDimensions(); }),
                             ),
                           ))
                       .toList(),
@@ -649,8 +715,8 @@ class _EditFormPageState extends State<EditFormPage> {
                
                 Text('部材情報', style: styleSection),
                 const SizedBox(height: 6),
-                _yobisunComponentEditor('滑材', rec.subzai, yobisunNode: _subzaiYobisunNode, countNode: _subzaiCountNode, nextNode: _getaYobisunNode),
-                _yobisunComponentEditor(getaOrSuriTypeLabel(rec.getaOrSuri), rec.getaOrSuriSpec, yobisunNode: _getaYobisunNode, countNode: _getaCountNode),
+                _yobisunComponentEditor('滑材', rec.subzai, yobisunNode: _subzaiYobisunNode, countNode: _subzaiCountNode, nextNode: _getaYobisunNode, onChanged: (_) => _calculateOutsideDimensions()),
+                _yobisunComponentEditor(getaOrSuriTypeLabel(rec.getaOrSuri), rec.getaOrSuriSpec, yobisunNode: _getaYobisunNode, countNode: _getaCountNode, onChanged: (_) => _calculateOutsideDimensions()),
                 _yobisunComponentEditor('H', rec.h),
                 _yobisunComponentEditor('負荷材1', rec.fukazai1),
                 _yobisunComponentEditor('負荷材2', rec.fukazai2),
@@ -679,6 +745,15 @@ class _EditFormPageState extends State<EditFormPage> {
                       setState(() => rec.hiraichiDrawing = data);
                     }, 'assets/images/国内工注票平打ち.jpg'),
                   ],
+                ),
+                const SizedBox(height: 16),
+                Text('備考', style: styleSection),
+                const SizedBox(height: 6),
+                _textField(
+                  label: '備考',
+                  initial: rec.remarks,
+                  onChanged: (v) => rec.remarks = v,
+                  maxLines: 5,
                 ),
                 const SizedBox(height: 32),
                 Wrap(
@@ -722,7 +797,6 @@ class _EditFormPageState extends State<EditFormPage> {
     );
   }
 
-  // 👈 【変更】スタイルを引数で受け取れるように
   Widget _buildSectionHeader(String title, {TextStyle? style}) {
     final defaultStyle = Theme.of(context).textTheme.titleMedium;
     return Padding(
@@ -731,7 +805,6 @@ class _EditFormPageState extends State<EditFormPage> {
     );
   }
 
-  // (メソッド _drawingButton, _navigateToDrawingPage は変更なし)
   Widget _drawingButton(
       String label, String key, DrawingData? data, Function(DrawingData?) onSave, String imagePath) {
     return Column(

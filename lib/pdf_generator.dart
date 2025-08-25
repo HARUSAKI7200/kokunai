@@ -15,7 +15,7 @@ class PdfGenerator {
 
     // フォントデータを読み込む
     final fontData =
-        await rootBundle.load("assets/fonts/NotoSansJP-Regular.ttf");
+        await rootBundle.load("assets/fonts/NotoSansJP-Bold.ttf");
     final ttf = pw.Font.ttf(fontData);
 
     // 背景画像を事前に読み込む
@@ -82,8 +82,8 @@ class PdfGenerator {
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: [
                     pw.Text('部材情報',
-                        style: pw.TextStyle(
-                            fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                        style: const pw.TextStyle(
+                            fontSize: 13)),
                     pw.SizedBox(height: 4),
                     _buildComponentsTable(r),
                   ],
@@ -97,8 +97,8 @@ class PdfGenerator {
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: [
                     pw.Text('備考',
-                        style: pw.TextStyle(
-                            fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                        style: const pw.TextStyle(
+                            fontSize: 13)),
                     pw.SizedBox(height: 4),
                     pw.Expanded(
                       child: pw.Container(
@@ -138,9 +138,8 @@ class PdfGenerator {
             height: 40,
             child: pw.Stack(alignment: pw.Alignment.center, children: [
               pw.Text('工　注　票',
-                  style: pw.TextStyle(
-                      fontSize: 20,
-                      fontWeight: pw.FontWeight.bold,
+                  style: const pw.TextStyle(
+                      fontSize: 21,
                       decoration: pw.TextDecoration.underline)),
               pw.Positioned(
                 left: 0,
@@ -233,7 +232,7 @@ class PdfGenerator {
         children: [
           pw.Text(title,
               style:
-                  pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                  const pw.TextStyle(fontSize: 11)),
           pw.SizedBox(height: 2),
           pw.Expanded(
             child: pw.Container(
@@ -362,7 +361,7 @@ class PdfGenerator {
         _drawPdfArrow(canvas, p1, p2);
       } else if (element is dc.DrawingText) {
         final p = transform(element.position.dx, element.position.dy);
-        final scaledFontSize = 16 * scale;
+        final scaledFontSize = 17 * scale;
         canvas.drawString(
           font,
           scaledFontSize,
@@ -389,8 +388,8 @@ class PdfGenerator {
 
   pw.Widget _buildComponentsTable(FormRecord r) {
     const headerStyle =
-        pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold);
-    const cellStyle = pw.TextStyle(fontSize: 9);
+        pw.TextStyle(fontSize: 10);
+    const cellStyle = pw.TextStyle(fontSize: 10);
 
     final insideL = double.tryParse(r.insideLength ?? '');
     final insideW = double.tryParse(r.insideWidth ?? '');
@@ -484,17 +483,17 @@ class PdfGenerator {
 
   pw.Widget _labelCell(String text) => pw.Padding(
         padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: pw.Text(text, style: const pw.TextStyle(fontSize: 9)),
+        child: pw.Text(text, style: const pw.TextStyle(fontSize: 10)),
       );
 
   pw.Widget _valueCell(String text) => pw.Container(
         padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: pw.Text(text, style: const pw.TextStyle(fontSize: 10)),
+        child: pw.Text(text, style: const pw.TextStyle(fontSize: 11)),
       );
   
   pw.Widget _bigValueCell(String text) => pw.Container(
         padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
         constraints: const pw.BoxConstraints(minHeight: 17),
-        child: pw.Text(text, style: const pw.TextStyle(fontSize: 12)),
+        child: pw.Text(text, style: const pw.TextStyle(fontSize: 13)),
       );
 }

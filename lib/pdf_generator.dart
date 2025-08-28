@@ -15,7 +15,7 @@ class PdfGenerator {
 
     // フォントデータを読み込む
     final fontData =
-        await rootBundle.load("assets/fonts/NotoSansJP-Bold.ttf");
+        await rootBundle.load("assets/fonts/NotoSansJP-Regular.ttf");
     final ttf = pw.Font.ttf(fontData);
 
     // 背景画像を事前に読み込む
@@ -82,8 +82,8 @@ class PdfGenerator {
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: [
                     pw.Text('部材情報',
-                        style: const pw.TextStyle(
-                            fontSize: 13)),
+                        style: pw.TextStyle(
+                            fontSize: 12, fontWeight: pw.FontWeight.bold)),
                     pw.SizedBox(height: 4),
                     _buildComponentsTable(r),
                   ],
@@ -97,8 +97,8 @@ class PdfGenerator {
                   crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: [
                     pw.Text('備考',
-                        style: const pw.TextStyle(
-                            fontSize: 13)),
+                        style: pw.TextStyle(
+                            fontSize: 12, fontWeight: pw.FontWeight.bold)),
                     pw.SizedBox(height: 4),
                     pw.Expanded(
                       child: pw.Container(
@@ -138,8 +138,9 @@ class PdfGenerator {
             height: 40,
             child: pw.Stack(alignment: pw.Alignment.center, children: [
               pw.Text('工　注　票',
-                  style: const pw.TextStyle(
-                      fontSize: 21,
+                  style: pw.TextStyle(
+                      fontSize: 20,
+                      fontWeight: pw.FontWeight.bold,
                       decoration: pw.TextDecoration.underline)),
               pw.Positioned(
                 left: 0,
@@ -196,7 +197,7 @@ class PdfGenerator {
               pw.TableRow(children: [
                 _labelCell('内寸'), _bigValueCell(insideDim),
                 _labelCell('外寸'), _bigValueCell(outsideDim),
-                _labelCell('数量'), _bigValueCell(r.quantity != null ? '${r.quantity} C/S' : ''),
+                _labelCell('数量'), _valueCell(r.quantity != null ? '${r.quantity} C/S' : ''),
               ])
             ]
           ),
@@ -232,36 +233,21 @@ class PdfGenerator {
         children: [
           pw.Text(title,
               style:
-                  const pw.TextStyle(fontSize: 11)),
+                  pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 2),
           pw.Expanded(
             child: pw.Container(
               width: double.infinity,
               decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: pdf.PdfColors.black, width: 1.0)),
+                  border: pw.Border.all(color: pdf.PdfColors.grey, width: 0.5)),
               child: pw.CustomPaint(
+                child: pw.Image(image, fit: pw.BoxFit.contain),
                 painter: (canvas, size) {
-                  // ▼▼▼【修正】▼▼▼
-                  // 背景画像と手書き内容を同じPaintコンテキストで描画し、ズレをなくす
-                  
-                  // 1. 背景画像を描画 (BoxFit.containのロジックで中央に配置)
-                  final imageSize = pdf.PdfPoint(image.width!.toDouble(), image.height!.toDouble());
-                  final bgScaleX = size.x / imageSize.x;
-                  final bgScaleY = size.y / imageSize.y;
-                  final bgScale = math.min(bgScaleX, bgScaleY);
-                  final bgWidth = imageSize.x * bgScale;
-                  final bgHeight = imageSize.y * bgScale;
-                  final bgOffsetX = (size.x - bgWidth) / 2;
-                  final bgOffsetY = (size.y - bgHeight) / 2;
-
-                  canvas.drawImage(image, bgOffsetX, bgOffsetY, bgWidth, bgHeight);
-                  
-                  // 2. 手書き内容を同じ座標系で上に重ねて描画
                   if (drawingData != null && drawingData.elements.isNotEmpty) {
-                    final pdfFont = (font as pw.TtfFont).buildFont(ctx.document);
+                    final pdfFont =
+                        (font as pw.TtfFont).buildFont(ctx.document);
                     _drawVectorGraphics(canvas, size, drawingData, pdfFont);
                   }
-                  // ▲▲▲【修正ここまで】▲▲▲
                 },
               ),
             ),
@@ -347,23 +333,19 @@ class PdfGenerator {
         canvas
           ..drawRect(rect.x, rect.y, rect.width, rect.height)
           ..strokePath();
+      // ▼▼▼ 【修正】CrossedRectangleの描画処理を修正 ▼▼▼
       } else if (element is dc.CrossedRectangle) {
-        final p1 = transform(element.rect.left, element.rect.top);
-        final p2 = transform(element.rect.right, element.rect.bottom);
-        final rect = pdf.PdfRect.fromPoints(p1, p2);
+        final topLeft = transform(element.rect.topLeft.dx, element.rect.topLeft.dy);
+        final topRight = transform(element.rect.topRight.dx, element.rect.topRight.dy);
+        final bottomLeft = transform(element.rect.bottomLeft.dx, element.rect.bottomLeft.dy);
+        final bottomRight = transform(element.rect.bottomRight.dx, element.rect.bottomRight.dy);
 
-        // Draw rectangle
         canvas
-          ..drawRect(rect.x, rect.y, rect.width, rect.height);
-        
-        // Get corners from the created PdfRect
-        final topLeft = rect.topLeft;
-        final topRight = rect.topRight;
-        final bottomLeft = rect.bottomLeft;
-        final bottomRight = rect.bottomRight;
-        
-        // Draw diagonals
-        canvas
+          ..moveTo(topLeft.x, topLeft.y)
+          ..lineTo(topRight.x, topRight.y)
+          ..lineTo(bottomRight.x, bottomRight.y)
+          ..lineTo(bottomLeft.x, bottomLeft.y)
+          ..closePath() // 四角形を閉じる
           ..moveTo(topLeft.x, topLeft.y)
           ..lineTo(bottomRight.x, bottomRight.y)
           ..moveTo(topRight.x, topRight.y)
@@ -380,7 +362,7 @@ class PdfGenerator {
         _drawPdfArrow(canvas, p1, p2);
       } else if (element is dc.DrawingText) {
         final p = transform(element.position.dx, element.position.dy);
-        final scaledFontSize = 17 * scale;
+        final scaledFontSize = 16 * scale;
         canvas.drawString(
           font,
           scaledFontSize,
@@ -407,8 +389,8 @@ class PdfGenerator {
 
   pw.Widget _buildComponentsTable(FormRecord r) {
     const headerStyle =
-        pw.TextStyle(fontSize: 10);
-    const cellStyle = pw.TextStyle(fontSize: 10);
+        pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold);
+    const cellStyle = pw.TextStyle(fontSize: 9);
 
     final insideL = double.tryParse(r.insideLength ?? '');
     final insideW = double.tryParse(r.insideWidth ?? '');
@@ -502,17 +484,17 @@ class PdfGenerator {
 
   pw.Widget _labelCell(String text) => pw.Padding(
         padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: pw.Text(text, style: const pw.TextStyle(fontSize: 10)),
+        child: pw.Text(text, style: const pw.TextStyle(fontSize: 9)),
       );
 
   pw.Widget _valueCell(String text) => pw.Container(
         padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: pw.Text(text, style: const pw.TextStyle(fontSize: 11)),
+        child: pw.Text(text, style: const pw.TextStyle(fontSize: 10)),
       );
   
   pw.Widget _bigValueCell(String text) => pw.Container(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-        constraints: const pw.BoxConstraints(minHeight: 20),
-        child: pw.Text(text, style: const pw.TextStyle(fontSize: 14)),
+        padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        constraints: const pw.BoxConstraints(minHeight: 17),
+        child: pw.Text(text, style: const pw.TextStyle(fontSize: 12)),
       );
 }

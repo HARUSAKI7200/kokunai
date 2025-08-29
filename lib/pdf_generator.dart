@@ -219,6 +219,7 @@ class PdfGenerator {
         ]);
   }
 
+  // 👈 【変更】描画データを画像として直接表示する
   pw.Widget _buildDrawings(
       pw.Context ctx,
       FormRecord r,
@@ -227,7 +228,7 @@ class PdfGenerator {
       pw.MemoryImage hiraichiImage,
       pw.MemoryImage subzaiImage) {
     pw.Widget drawingBox(
-        String title, DrawingData? drawingData, pw.MemoryImage image) {
+        String title, Uint8List? drawingImage, pw.MemoryImage defaultImage) {
       return pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
@@ -240,16 +241,9 @@ class PdfGenerator {
               width: double.infinity,
               decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: pdf.PdfColors.grey, width: 0.5)),
-              child: pw.CustomPaint(
-                child: pw.Image(image, fit: pw.BoxFit.contain),
-                painter: (canvas, size) {
-                  if (drawingData != null && drawingData.elements.isNotEmpty) {
-                    final pdfFont =
-                        (font as pw.TtfFont).buildFont(ctx.document);
-                    _drawVectorGraphics(canvas, size, drawingData, pdfFont);
-                  }
-                },
-              ),
+              child: drawingImage != null
+                  ? pw.Image(pw.MemoryImage(drawingImage), fit: pw.BoxFit.contain)
+                  : pw.Image(defaultImage, fit: pw.BoxFit.contain),
             ),
           ),
         ],
@@ -262,129 +256,23 @@ class PdfGenerator {
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
           pw.Expanded(
-              flex: 2, child: drawingBox('腰下', r.yokoshitaDrawing, yokoshitaImage)),
+              flex: 2, child: drawingBox('腰下', r.yokoshitaDrawingImage, yokoshitaImage)),
           pw.SizedBox(width: 8),
           pw.Expanded(
             flex: 2,
             child: pw.Column(children: [
               pw.Expanded(
                   flex: 3,
-                  child: drawingBox('側ツマ', r.hiraichiDrawing, hiraichiImage)),
+                  child: drawingBox('側ツマ', r.hiraichiDrawingImage, hiraichiImage)),
               pw.SizedBox(height: 8),
               pw.Expanded(
                   flex: 2,
-                  child: drawingBox('滑材', r.subzaiDrawing, subzaiImage)),
+                  child: drawingBox('滑材', r.subzaiDrawingImage, subzaiImage)),
             ]),
           ),
         ],
       ),
     );
-  }
-
-  void _drawVectorGraphics(pdf.PdfGraphics canvas, pdf.PdfPoint size,
-      DrawingData data, pdf.PdfFont font) {
-    final elements =
-        data.elements.map((e) => dc.DrawingElement.fromJson(e)).toList();
-    final sourceSize = (data.sourceWidth != null && data.sourceHeight != null)
-        ? pdf.PdfPoint(data.sourceWidth!, data.sourceHeight!)
-        : const pdf.PdfPoint(1, 1);
-
-    final double scaleX = size.x / sourceSize.x;
-    final double scaleY = size.y / sourceSize.y;
-    final double scale = math.min(scaleX, scaleY);
-    final double offsetX = (size.x - sourceSize.x * scale) / 2;
-    final double offsetY = (size.y - sourceSize.y * scale) / 2;
-
-    pdf.PdfPoint transform(double x, double y) {
-      final newX = x * scale + offsetX;
-      final newY = size.y - (y * scale + offsetY);
-      return pdf.PdfPoint(newX, newY);
-    }
-
-    for (final element in elements) {
-      final color = pdf.PdfColor.fromInt(element.paint.color.value);
-      canvas
-        ..saveContext()
-        ..setColor(color)
-        ..setLineWidth(element.paint.strokeWidth * scale);
-
-      if (element is dc.DrawingPath) {
-        if (element.points.isNotEmpty) {
-          final firstPoint =
-              transform(element.points.first.dx, element.points.first.dy);
-          canvas.moveTo(firstPoint.x, firstPoint.y);
-          for (var i = 1; i < element.points.length; i++) {
-            final p = transform(element.points[i].dx, element.points[i].dy);
-            canvas.lineTo(p.x, p.y);
-          }
-          canvas.strokePath();
-        }
-      } else if (element is dc.StraightLine) {
-        final p1 = transform(element.start.dx, element.start.dy);
-        final p2 = transform(element.end.dx, element.end.dy);
-        canvas
-          ..moveTo(p1.x, p1.y)
-          ..lineTo(p2.x, p2.y)
-          ..strokePath();
-      } else if (element is dc.Rectangle) {
-        final p1 = transform(element.rect.left, element.rect.top);
-        final p2 = transform(element.rect.right, element.rect.bottom);
-        final rect = pdf.PdfRect.fromPoints(p1, p2);
-        canvas
-          ..drawRect(rect.x, rect.y, rect.width, rect.height)
-          ..strokePath();
-      // ▼▼▼ 【修正】CrossedRectangleの描画処理を修正 ▼▼▼
-      } else if (element is dc.CrossedRectangle) {
-        final topLeft = transform(element.rect.topLeft.dx, element.rect.topLeft.dy);
-        final topRight = transform(element.rect.topRight.dx, element.rect.topRight.dy);
-        final bottomLeft = transform(element.rect.bottomLeft.dx, element.rect.bottomLeft.dy);
-        final bottomRight = transform(element.rect.bottomRight.dx, element.rect.bottomRight.dy);
-
-        canvas
-          ..moveTo(topLeft.x, topLeft.y)
-          ..lineTo(topRight.x, topRight.y)
-          ..lineTo(bottomRight.x, bottomRight.y)
-          ..lineTo(bottomLeft.x, bottomLeft.y)
-          ..closePath() // 四角形を閉じる
-          ..moveTo(topLeft.x, topLeft.y)
-          ..lineTo(bottomRight.x, bottomRight.y)
-          ..moveTo(topRight.x, topRight.y)
-          ..lineTo(bottomLeft.x, bottomLeft.y)
-          ..strokePath();
-      } else if (element is dc.DimensionLine) {
-        final p1 = transform(element.start.dx, element.start.dy);
-        final p2 = transform(element.end.dx, element.end.dy);
-        canvas
-          ..moveTo(p1.x, p1.y)
-          ..lineTo(p2.x, p2.y)
-          ..strokePath();
-        _drawPdfArrow(canvas, p2, p1);
-        _drawPdfArrow(canvas, p1, p2);
-      } else if (element is dc.DrawingText) {
-        final p = transform(element.position.dx, element.position.dy);
-        final scaledFontSize = 16 * scale;
-        canvas.drawString(
-          font,
-          scaledFontSize,
-          element.text,
-          p.x,
-          p.y - scaledFontSize,
-        );
-      }
-      canvas.restoreContext();
-    }
-  }
-
-  void _drawPdfArrow(pdf.PdfGraphics canvas, pdf.PdfPoint p1, pdf.PdfPoint p2) {
-    const arrowSize = 8.0;
-    final angle = math.atan2(p1.y - p2.y, p1.x - p2.x);
-    canvas
-      ..moveTo(p1.x - arrowSize * math.cos(angle - math.pi / 6),
-          p1.y - arrowSize * math.sin(angle - math.pi / 6))
-      ..lineTo(p1.x, p1.y)
-      ..lineTo(p1.x - arrowSize * math.cos(angle + math.pi / 6),
-          p1.y - arrowSize * math.sin(angle + math.pi / 6))
-      ..strokePath();
   }
 
   pw.Widget _buildComponentsTable(FormRecord r) {

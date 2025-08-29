@@ -33,6 +33,7 @@ class _EditFormPageState extends State<EditFormPage> {
   late FormRecord rec;
   // 👈 【修正】日付のフォーマットを変更
   final df = DateFormat('MM/dd');
+  // 👈 【変更】GlobalKeyは不要になるので削除
   final Map<String, GlobalKey> _drawingKeys = {};
 
   // --- Controllers for Auto Calculation ---
@@ -87,7 +88,7 @@ class _EditFormPageState extends State<EditFormPage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FocusScope.of(context).requestFocus(_workPlaceNode);
-      _generateAllPreviews();
+      // _generateAllPreviews(); // 👈 【削除】プレビューは画像として保存されるため不要になる
       _calculateOutsideDimensions();
     });
   }
@@ -150,32 +151,8 @@ class _EditFormPageState extends State<EditFormPage> {
     if (newOutsideH != null) _outsideHController.text = newOutsideH.toInt().toString();
   }
 
-
-  Future<void> _generateAllPreviews() async {
-    await _generatePreview('subzai', rec.subzaiDrawing);
-    await _generatePreview('yokoshita', rec.yokoshitaDrawing);
-    await _generatePreview('hiraichi', rec.hiraichiDrawing);
-  }
-
-  Future<void> _generatePreview(String key, DrawingData? data) async {
-    if (data != null && data.elements.isNotEmpty && _drawingKeys[key]?.currentContext != null) {
-      try {
-        RenderRepaintBoundary boundary =
-            _drawingKeys[key]!.currentContext!.findRenderObject() as RenderRepaintBoundary;
-        ui.Image image = await boundary.toImage(pixelRatio: 1.5);
-        ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-        if (byteData != null) {
-          if(mounted) {
-            setState(() {
-              data.previewBytes = byteData.buffer.asUint8List();
-            });
-          }
-        }
-      } catch (e) {
-        print("Error generating preview for $key: $e");
-      }
-    }
-  }
+  // 👈 【削除】_generateAllPreviews() は不要
+  // 👈 【削除】_generatePreview() は不要
 
   T? _numOrNull<T extends num>(String? s) {
     if (s == null || s.trim().isEmpty) return null;
@@ -733,16 +710,17 @@ class _EditFormPageState extends State<EditFormPage> {
                 const SizedBox(height: 6),
                 Column(
                   children: [
-                    _drawingButton('滑材', 'subzai', rec.subzaiDrawing, (data) {
-                      setState(() => rec.subzaiDrawing = data);
+                    // 👈 【変更】Uint8Listを渡す
+                    _drawingButton('滑材', 'subzai', rec.subzaiDrawingImage, (image) {
+                      setState(() => rec.subzaiDrawingImage = image);
                     }, 'assets/images/国内工注票滑材.jpg'),
                     const SizedBox(height: 16),
-                    _drawingButton('腰下', 'yokoshita', rec.yokoshitaDrawing, (data) {
-                      setState(() => rec.yokoshitaDrawing = data);
+                    _drawingButton('腰下', 'yokoshita', rec.yokoshitaDrawingImage, (image) {
+                      setState(() => rec.yokoshitaDrawingImage = image);
                     }, 'assets/images/国内工注票腰下図面.jpg'),
                     const SizedBox(height: 16),
-                    _drawingButton('側ツマ', 'hiraichi', rec.hiraichiDrawing, (data) {
-                      setState(() => rec.hiraichiDrawing = data);
+                    _drawingButton('側ツマ', 'hiraichi', rec.hiraichiDrawingImage, (image) {
+                      setState(() => rec.hiraichiDrawingImage = image);
                     }, 'assets/images/国内工注票平打ち.jpg'),
                   ],
                 ),
@@ -805,8 +783,8 @@ class _EditFormPageState extends State<EditFormPage> {
     );
   }
 
-  Widget _drawingButton(
-      String label, String key, DrawingData? data, Function(DrawingData?) onSave, String imagePath) {
+  // 👈 【変更】引数と表示ウィジェットを更新
+  Widget _drawingButton(String label, String key, Uint8List? imageBytes, Function(Uint8List?) onSave, String imagePath) {
     return Column(
       children: [
         FractionallySizedBox(
@@ -814,7 +792,7 @@ class _EditFormPageState extends State<EditFormPage> {
           child: AspectRatio(
             aspectRatio: 4 / 3,
             child: InkWell(
-              onTap: () => _navigateToDrawingPage(data, onSave, imagePath, key),
+              onTap: () => _navigateToDrawingPage(imageBytes, onSave, imagePath),
               child: Container(
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.grey.shade400),
@@ -822,22 +800,10 @@ class _EditFormPageState extends State<EditFormPage> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(4),
-                  child: data?.previewBytes != null
-                      ? Image.memory(data!.previewBytes, fit: BoxFit.contain)
-                      : (data != null && data.elements.isNotEmpty
-                          ? RepaintBoundary(
-                              key: _drawingKeys[key],
-                              child: CustomPaint(
-                                foregroundPainter: DrawingPreviewPainter(
-                                  elements: data.elements.map((e) => DrawingElement.fromJson(e)).toList(),
-                                  sourceSize: (data.sourceWidth != null && data.sourceHeight != null)
-                                      ? Size(data.sourceWidth!, data.sourceHeight!)
-                                      : null,
-                                ),
-                                child: Image.asset(imagePath, fit: BoxFit.contain),
-                              ),
-                            )
-                          : Image.asset(imagePath, fit: BoxFit.contain)),
+                  // 👈 【変更】保存された画像データがあればそれを表示
+                  child: imageBytes != null
+                      ? Image.memory(imageBytes, fit: BoxFit.contain)
+                      : Image.asset(imagePath, fit: BoxFit.contain),
                 ),
               ),
             ),
@@ -849,56 +815,18 @@ class _EditFormPageState extends State<EditFormPage> {
     );
   }
 
-  void _navigateToDrawingPage(DrawingData? data, Function(DrawingData?) onSave, String imagePath, String previewKey) async {
-    final result = await Navigator.of(context).push<DrawingData>(
+  // 👈 【変更】描画ページへのナビゲーションを更新
+  void _navigateToDrawingPage(Uint8List? initialImage, Function(Uint8List?) onSave, String imagePath) async {
+    final result = await Navigator.of(context).push<Uint8List?>(
       MaterialPageRoute(
         builder: (_) => DrawingPage(
-          initialData: data,
+          initialImage: initialImage,
           backgroundImage: imagePath,
         ),
       ),
     );
     if (result != null) {
       onSave(result);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _generatePreview(previewKey, result);
-      });
     }
   }
-}
-
-class DrawingPreviewPainter extends CustomPainter {
-  final List<DrawingElement> elements;
-  final Size? sourceSize;
-
-  DrawingPreviewPainter({required this.elements, this.sourceSize});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.saveLayer(Rect.fromLTWH(0, 0, size.width, size.height), Paint());
-    if (sourceSize == null || (sourceSize!.width == 0 || sourceSize!.height == 0)) {
-      for (final element in elements) {
-        element.draw(canvas, size);
-      }
-    } else {
-      final FittedSizes fittedSizes = applyBoxFit(BoxFit.contain, sourceSize!, size);
-      final Rect destRect = Alignment.center.inscribe(fittedSizes.destination, Rect.fromLTWH(0, 0, size.width, size.height));
-      final double scale = destRect.width / sourceSize!.width;
-      final Offset translate = destRect.topLeft;
-
-      canvas.save();
-      canvas.translate(translate.dx, translate.dy);
-      canvas.scale(scale, scale);
-
-      for (final element in elements) {
-        element.draw(canvas, sourceSize!);
-      }
-      canvas.restore();
-    }
-    
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant DrawingPreviewPainter oldDelegate) => true;
 }

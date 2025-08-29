@@ -1,5 +1,6 @@
 // lib/models.dart
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
@@ -184,7 +185,6 @@ class DrawingData {
   }
 }
 
-
 class FormRecord {
   final String id;
   DateTime shipDate;
@@ -223,9 +223,10 @@ class FormRecord {
   ComponentSpec other1;
   ComponentSpec other2;
 
-  DrawingData? subzaiDrawing;
-  DrawingData? yokoshitaDrawing;
-  DrawingData? hiraichiDrawing;
+  // 👈 【変更】DrawingDataではなくUint8Listを保存するように変更
+  Uint8List? subzaiDrawingImage;
+  Uint8List? yokoshitaDrawingImage;
+  Uint8List? hiraichiDrawingImage;
   
   String? remarks;
 
@@ -266,9 +267,10 @@ class FormRecord {
     ComponentSpec? ryo,
     ComponentSpec? other1,
     ComponentSpec? other2,
-    this.subzaiDrawing,
-    this.yokoshitaDrawing,
-    this.hiraichiDrawing,
+    // 👈 【変更】DrawingDataからUint8Listに変更
+    this.subzaiDrawingImage,
+    this.yokoshitaDrawingImage,
+    this.hiraichiDrawingImage,
     this.remarks,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -322,9 +324,10 @@ class FormRecord {
     ComponentSpec? ryo,
     ComponentSpec? other1,
     ComponentSpec? other2,
-    DrawingData? subzaiDrawing,
-    DrawingData? yokoshitaDrawing,
-    DrawingData? hiraichiDrawing,
+    // 👈 【変更】Uint8Listに変更
+    Uint8List? subzaiDrawingImage,
+    Uint8List? yokoshitaDrawingImage,
+    Uint8List? hiraichiDrawingImage,
     String? remarks,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -363,9 +366,10 @@ class FormRecord {
       ryo: ryo ?? this.ryo,
       other1: other1 ?? this.other1,
       other2: other2 ?? this.other2,
-      subzaiDrawing: subzaiDrawing ?? this.subzaiDrawing,
-      yokoshitaDrawing: yokoshitaDrawing ?? this.yokoshitaDrawing,
-      hiraichiDrawing: hiraichiDrawing ?? this.hiraichiDrawing,
+      // 👈 【変更】
+      subzaiDrawingImage: subzaiDrawingImage ?? this.subzaiDrawingImage,
+      yokoshitaDrawingImage: yokoshitaDrawingImage ?? this.yokoshitaDrawingImage,
+      hiraichiDrawingImage: hiraichiDrawingImage ?? this.hiraichiDrawingImage,
       remarks: remarks ?? this.remarks,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -406,9 +410,10 @@ class FormRecord {
         'ryo': ryo.toJson(),
         'other1': other1.toJson(),
         'other2': other2.toJson(),
-        'subzaiDrawing': subzaiDrawing?.toJson(),
-        'yokoshitaDrawing': yokoshitaDrawing?.toJson(),
-        'hiraichiDrawing': hiraichiDrawing?.toJson(),
+        // 👈 【変更】Uint8ListをBase64文字列に変換して保存
+        'subzaiDrawingImage': subzaiDrawingImage != null ? base64Encode(subzaiDrawingImage!) : null,
+        'yokoshitaDrawingImage': yokoshitaDrawingImage != null ? base64Encode(yokoshitaDrawingImage!) : null,
+        'hiraichiDrawingImage': hiraichiDrawingImage != null ? base64Encode(hiraichiDrawingImage!) : null,
         'remarks': remarks,
         'createdAt': createdAt.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
@@ -448,15 +453,10 @@ class FormRecord {
         ryo: ComponentSpec.fromJson(j['ryo'] as Map<String, dynamic>),
         other1: ComponentSpec.fromJson(j['other1'] as Map<String, dynamic>),
         other2: ComponentSpec.fromJson(j['other2'] as Map<String, dynamic>),
-        subzaiDrawing: j['subzaiDrawing'] != null
-            ? DrawingData.fromJson(j['subzaiDrawing'] as Map<String, dynamic>)
-            : null,
-        yokoshitaDrawing: j['yokoshitaDrawing'] != null
-            ? DrawingData.fromJson(j['yokoshitaDrawing'] as Map<String, dynamic>)
-            : null,
-        hiraichiDrawing: j['hiraichiDrawing'] != null
-            ? DrawingData.fromJson(j['hiraichiDrawing'] as Map<String, dynamic>)
-            : null,
+        // 👈 【変更】Base64文字列からUint8Listに変換して読み込み
+        subzaiDrawingImage: j['subzaiDrawingImage'] != null ? base64Decode(j['subzaiDrawingImage'] as String) : null,
+        yokoshitaDrawingImage: j['yokoshitaDrawingImage'] != null ? base64Decode(j['yokoshitaDrawingImage'] as String) : null,
+        hiraichiDrawingImage: j['hiraichiDrawingImage'] != null ? base64Decode(j['hiraichiDrawingImage'] as String) : null,
         remarks: j['remarks'] as String?,
         createdAt: DateTime.parse(j['createdAt'] as String),
         updatedAt: DateTime.parse(j['updatedAt'] as String),

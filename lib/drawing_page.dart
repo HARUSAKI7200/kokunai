@@ -3,17 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:ui' as ui;
 import 'package:collection/collection.dart';
+import 'dart:typed_data';
 
 import 'models.dart';
 import 'drawing_canvas.dart';
 
 class DrawingPage extends StatefulWidget {
-  final DrawingData? initialData;
+  // 👈 【変更】initialDataではなくinitialImageを受け取る
+  final Uint8List? initialImage;
   final String backgroundImage;
 
   const DrawingPage({
     super.key,
-    this.initialData,
+    this.initialImage,
     required this.backgroundImage,
   });
 
@@ -22,6 +24,7 @@ class DrawingPage extends StatefulWidget {
 }
 
 class _DrawingPageState extends State<DrawingPage> {
+  // 👈 【変更】初期画像から描画要素を復元するロジックは削除
   late final ValueNotifier<List<DrawingElement>> _elementsNotifier;
   late final ValueNotifier<DrawingElement?> _previewElementNotifier;
 
@@ -44,12 +47,11 @@ class _DrawingPageState extends State<DrawingPage> {
   @override
   void initState() {
     super.initState();
-    final initialElements = widget.initialData?.elements
-            .map((json) => DrawingElement.fromJson(json))
-            .toList() ??
-        [];
-    _elementsNotifier =
-        ValueNotifier(initialElements.map((e) => e.clone()).toList());
+    // 👈 【変更】initialImageがnullでない場合は表示用の_elementsNotifierを空に
+    final initialElements = (widget.initialImage == null && widget.initialData != null)
+            ? widget.initialData!.elements.map((json) => DrawingElement.fromJson(json)).toList()
+            : [];
+    _elementsNotifier = ValueNotifier(initialElements.map((e) => e.clone()).toList());
     _previewElementNotifier = ValueNotifier(null);
 
     _backgroundImage = Image.asset(widget.backgroundImage);
@@ -112,7 +114,6 @@ class _DrawingPageState extends State<DrawingPage> {
             end: pos,
             paint: _createPaintForTool()));
         break;
-      // ▼▼▼ 【修正】四角形のサイズ指定を変更 ▼▼▼
       case DrawingTool.rectangle:
         _previewElementNotifier.value = Rectangle(
           id: 0,
@@ -124,7 +125,6 @@ class _DrawingPageState extends State<DrawingPage> {
             ..style = PaintingStyle.stroke,
         );
         return;
-      // ▼▼▼ 【修正】四角形バツのサイズ指定を変更 ▼▼▼
       case DrawingTool.crossedRectangle:
         _previewElementNotifier.value = CrossedRectangle(
           id: 0,
@@ -326,110 +326,119 @@ class _DrawingPageState extends State<DrawingPage> {
     });
   }
 
-  void _saveDrawing() {
-    if (_imageBounds == null) return;
-
-    final offset = _imageBounds!.topLeft;
-
-    final elementsToSave = _elementsNotifier.value.map((element) {
-      final clone = element.clone();
-      clone.move(-offset);
-      return clone;
-    }).toList();
-
-    final elementsAsJson = elementsToSave.map((e) => e.toJson()).toList();
+  // 👈 【修正】_saveDrawing メソッドを更新して画像をキャプチャ
+  Future<void> _saveDrawing() async {
+    final boundary =
+        _canvasKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+    if (boundary == null) {
+      if (mounted) {
+        Navigator.of(context).pop(null);
+      }
+      return;
+    }
     
-    final drawingData = DrawingData(
-      elementsAsJson,
-      imageKey: widget.backgroundImage,
-      sourceWidth: _imageBounds!.width,
-      sourceHeight: _imageBounds!.height,
-    );
-    Navigator.of(context).pop(drawingData);
+    final image = await boundary.toImage(pixelRatio: 3.0);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    final uint8List = byteData!.buffer.asUint8List();
+
+    if (mounted) {
+      Navigator.of(context).pop(uint8List);
+    }
   }
+
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('図面描画'),
-        actions: [
-          IconButton(
-              icon: const Icon(Icons.undo),
-              onPressed: () {
-                if (_elementsNotifier.value.isNotEmpty) {
-                  final currentElements =
-                      List<DrawingElement>.from(_elementsNotifier.value);
-                  currentElements.removeLast();
-                  _elementsNotifier.value = currentElements;
-                }
-              }),
-          IconButton(icon: const Icon(Icons.save), onPressed: _saveDrawing),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60.0),
-          child: Container(
-            color: Colors.grey[200],
-            // ▼▼▼ 【修正】ツールボタンを均等割り付けに変更 ▼▼▼
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildToolButton(DrawingTool.pen, Icons.edit, '自由線'),
-                _buildToolButton(DrawingTool.line, Icons.show_chart, '直線'),
-                _buildToolButton(DrawingTool.rectangle, Icons.crop_square, '四角'),
-                _buildToolButton(DrawingTool.crossedRectangle, Icons.close, '四角バツ'),
-                _buildToolButton(DrawingTool.dimension, Icons.straighten, '寸法線'),
-                _buildToolButton(DrawingTool.text, Icons.text_fields, 'テキスト'),
-                _buildToolButton(
-                    DrawingTool.eraser, Icons.cleaning_services, '消しゴム'),
-              ],
+    return PopScope(
+      canPop: true,
+      onPopInvoked: (didPop) async {
+        if(didPop) return;
+        Navigator.of(context).pop(null);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('図面描画'),
+          actions: [
+            IconButton(
+                icon: const Icon(Icons.undo),
+                onPressed: () {
+                  if (_elementsNotifier.value.isNotEmpty) {
+                    final currentElements =
+                        List<DrawingElement>.from(_elementsNotifier.value);
+                    currentElements.removeLast();
+                    _elementsNotifier.value = currentElements;
+                  }
+                }),
+            IconButton(icon: const Icon(Icons.save), onPressed: _saveDrawing),
+          ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(60.0),
+            child: Container(
+              color: Colors.grey[200],
+              // ▼▼▼ 【修正】ツールボタンを均等割り付けに変更 ▼▼▼
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildToolButton(DrawingTool.pen, Icons.edit, '自由線'),
+                  _buildToolButton(DrawingTool.line, Icons.show_chart, '直線'),
+                  _buildToolButton(DrawingTool.rectangle, Icons.crop_square, '四角'),
+                  _buildToolButton(DrawingTool.crossedRectangle, Icons.close, '四角バツ'),
+                  _buildToolButton(DrawingTool.dimension, Icons.straighten, '寸法線'),
+                  _buildToolButton(DrawingTool.text, Icons.text_fields, 'テキスト'),
+                  _buildToolButton(
+                      DrawingTool.eraser, Icons.cleaning_services, '消しゴム'),
+                ],
+              ),
             ),
           ),
         ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final layoutAspectRatio =
-                constraints.maxWidth / constraints.maxHeight;
-            double imageWidth;
-            double imageHeight;
-            if (layoutAspectRatio > _imageAspectRatio) {
-              imageHeight = constraints.maxHeight;
-              imageWidth = imageHeight * _imageAspectRatio;
-            } else {
-              imageWidth = constraints.maxWidth;
-              imageHeight = imageWidth / _imageAspectRatio;
-            }
-            final offsetX = (constraints.maxWidth - imageWidth) / 2;
-            const offsetY = 0.0;
-            _imageBounds =
-                Rect.fromLTWH(offsetX, offsetY, imageWidth, imageHeight);
+        body: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final layoutAspectRatio =
+                  constraints.maxWidth / constraints.maxHeight;
+              double imageWidth;
+              double imageHeight;
+              if (layoutAspectRatio > _imageAspectRatio) {
+                imageHeight = constraints.maxHeight;
+                imageWidth = imageHeight * _imageAspectRatio;
+              } else {
+                imageWidth = constraints.maxWidth;
+                imageHeight = imageWidth / _imageAspectRatio;
+              }
+              final offsetX = (constraints.maxWidth - imageWidth) / 2;
+              const offsetY = 0.0;
+              _imageBounds =
+                  Rect.fromLTWH(offsetX, offsetY, imageWidth, imageHeight);
 
-            return RepaintBoundary(
-              key: _canvasKey,
-              child: Stack(
-                alignment: Alignment.topLeft,
-                children: [
-                  Positioned.fromRect(
-                    rect: _imageBounds!,
-                    child: _backgroundImage,
-                  ),
-                  DrawingCanvas(
-                    elementsNotifier: _elementsNotifier,
-                    previewElementNotifier: _previewElementNotifier,
-                    selectedTool: _selectedTool,
-                    onPanDown: _onPanDown,
-                    onPanStart: _onPanStart,
-                    onPanUpdate: _onPanUpdate,
-                    onPanEnd: _onPanEnd,
-                    onTap: _onTapCanvas,
-                  ),
-                ],
-              ),
-            );
-          },
+              return RepaintBoundary(
+                key: _canvasKey,
+                child: Stack(
+                  alignment: Alignment.topLeft,
+                  children: [
+                    Positioned.fromRect(
+                      rect: _imageBounds!,
+                      // 👈 【変更】initialImageがあればそれを表示
+                      child: widget.initialImage != null
+                          ? Image.memory(widget.initialImage!, fit: BoxFit.contain)
+                          : _backgroundImage,
+                    ),
+                    DrawingCanvas(
+                      elementsNotifier: _elementsNotifier,
+                      previewElementNotifier: _previewElementNotifier,
+                      selectedTool: _selectedTool,
+                      onPanDown: _onPanDown,
+                      onPanStart: _onPanStart,
+                      onPanUpdate: _onPanUpdate,
+                      onPanEnd: _onPanEnd,
+                      onTap: _onTapCanvas,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
         ),
       ),
     );

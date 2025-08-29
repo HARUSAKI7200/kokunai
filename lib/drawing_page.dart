@@ -1,4 +1,5 @@
 // lib/drawing_page.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'dart:ui' as ui;
@@ -9,7 +10,6 @@ import 'models.dart';
 import 'drawing_canvas.dart';
 
 class DrawingPage extends StatefulWidget {
-  // 👈 【変更】initialDataではなくinitialImageを受け取る
   final Uint8List? initialImage;
   final String backgroundImage;
 
@@ -24,7 +24,6 @@ class DrawingPage extends StatefulWidget {
 }
 
 class _DrawingPageState extends State<DrawingPage> {
-  // 👈 【変更】初期画像から描画要素を復元するロジックは削除
   late final ValueNotifier<List<DrawingElement>> _elementsNotifier;
   late final ValueNotifier<DrawingElement?> _previewElementNotifier;
 
@@ -34,27 +33,25 @@ class _DrawingPageState extends State<DrawingPage> {
   DrawingElement? _movingElement;
   Offset _panStartOffset = Offset.zero;
 
-  // ▼▼▼ 【修正】四角形と四角形バツのサイズを分離 ▼▼▼
   static const double _rectangleWidth = 56.0;
   static const double _rectangleHeight = 20.0;
   static const double _crossedRectangleWidth = 56.0;
   static const double _crossedRectangleHeight = 56.0;
 
   Rect? _imageBounds;
-  late Image _backgroundImage;
+  late Image _displayImage;
   double _imageAspectRatio = 4 / 3;
 
   @override
   void initState() {
     super.initState();
-    // 👈 【変更】initialImageがnullでない場合は表示用の_elementsNotifierを空に
-    final initialElements = (widget.initialImage == null && widget.initialData != null)
-            ? widget.initialData!.elements.map((json) => DrawingElement.fromJson(json)).toList()
-            : [];
-    _elementsNotifier = ValueNotifier(initialElements.map((e) => e.clone()).toList());
+    _elementsNotifier = ValueNotifier([]);
     _previewElementNotifier = ValueNotifier(null);
 
-    _backgroundImage = Image.asset(widget.backgroundImage);
+    _displayImage = widget.initialImage != null
+        ? Image.memory(widget.initialImage!)
+        : Image.asset(widget.backgroundImage);
+
     _resolveImageAspectRatio();
   }
 
@@ -66,7 +63,7 @@ class _DrawingPageState extends State<DrawingPage> {
   }
 
   void _resolveImageAspectRatio() {
-    final imageProvider = _backgroundImage.image;
+    final imageProvider = _displayImage.image;
     final stream = imageProvider.resolve(const ImageConfiguration());
     stream.addListener(ImageStreamListener((info, _) {
       if (mounted) {
@@ -326,26 +323,54 @@ class _DrawingPageState extends State<DrawingPage> {
     });
   }
 
-  // 👈 【修正】_saveDrawing メソッドを更新して画像をキャプチャ
   Future<void> _saveDrawing() async {
-    final boundary =
-        _canvasKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-    if (boundary == null) {
-      if (mounted) {
-        Navigator.of(context).pop(null);
+    // 1. 背景画像をui.Imageに変換
+    final imageProvider = _displayImage.image;
+    final completer = Completer<ui.Image>();
+    imageProvider.resolve(const ImageConfiguration()).addListener(
+        ImageStreamListener((info, _) => completer.complete(info.image)));
+    final backgroundImage = await completer.future;
+
+    // 2. 新しいPictureRecorderを作成
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    final size = Size(backgroundImage.width.toDouble(), backgroundImage.height.toDouble());
+
+    // 3. 背景を描画
+    canvas.drawImage(backgroundImage, Offset.zero, Paint());
+
+    // 4. 描画要素をスケーリングして描画
+    if (_imageBounds != null) {
+      final scaleX = size.width / _imageBounds!.width;
+      final scaleY = size.height / _imageBounds!.height;
+      
+      canvas.save();
+      // 描画の原点を画像の左上に合わせる
+      canvas.translate(-_imageBounds!.left * scaleX, -_imageBounds!.top * scaleY);
+      // 全体をスケーリング
+      canvas.scale(scaleX, scaleY);
+
+      for (final element in _elementsNotifier.value) {
+        element.draw(canvas, _imageBounds!.size);
       }
-      return;
+      canvas.restore();
     }
     
-    final image = await boundary.toImage(pixelRatio: 3.0);
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    final uint8List = byteData!.buffer.asUint8List();
+    // 5. Pictureを画像に変換
+    final picture = recorder.endRecording();
+    final img = await picture.toImage(size.width.toInt(), size.height.toInt());
+    final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
+    
+    if (byteData == null) {
+       if (mounted) Navigator.of(context).pop(null);
+       return;
+    }
+    final uint8List = byteData.buffer.asUint8List();
 
     if (mounted) {
       Navigator.of(context).pop(uint8List);
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -375,7 +400,6 @@ class _DrawingPageState extends State<DrawingPage> {
             preferredSize: const Size.fromHeight(60.0),
             child: Container(
               color: Colors.grey[200],
-              // ▼▼▼ 【修正】ツールボタンを均等割り付けに変更 ▼▼▼
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
@@ -419,10 +443,7 @@ class _DrawingPageState extends State<DrawingPage> {
                   children: [
                     Positioned.fromRect(
                       rect: _imageBounds!,
-                      // 👈 【変更】initialImageがあればそれを表示
-                      child: widget.initialImage != null
-                          ? Image.memory(widget.initialImage!, fit: BoxFit.contain)
-                          : _backgroundImage,
+                      child: _displayImage,
                     ),
                     DrawingCanvas(
                       elementsNotifier: _elementsNotifier,
@@ -446,12 +467,11 @@ class _DrawingPageState extends State<DrawingPage> {
 
   Widget _buildToolButton(DrawingTool tool, IconData icon, String label) {
     final isSelected = _selectedTool == tool;
-    // ▼▼▼ 【修正】Expandedでラップして均等割りを実現 ▼▼▼
     return Expanded(
       child: InkWell(
         onTap: () {
           setState(() {
-            _selectedTool = tool;
+             _selectedTool = tool;
           });
         },
         child: Container(

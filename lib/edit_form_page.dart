@@ -31,17 +31,13 @@ class EditFormPage extends StatefulWidget {
 class _EditFormPageState extends State<EditFormPage> {
   final _formKey = GlobalKey<FormState>();
   late FormRecord rec;
-  // 👈 【修正】日付のフォーマットを変更
   final df = DateFormat('MM/dd');
-  // 👈 【変更】GlobalKeyは不要になるので削除
   final Map<String, GlobalKey> _drawingKeys = {};
 
-  // --- Controllers for Auto Calculation ---
   final _outsideLController = TextEditingController();
   final _outsideWController = TextEditingController();
   final _outsideHController = TextEditingController();
 
-  // --- Focus Nodes ---
   final _workPlaceNode = FocusNode();
   final _instructorNode = FocusNode();
   final _productNoNode = FocusNode();
@@ -88,7 +84,6 @@ class _EditFormPageState extends State<EditFormPage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FocusScope.of(context).requestFocus(_workPlaceNode);
-      // _generateAllPreviews(); // 👈 【削除】プレビューは画像として保存されるため不要になる
       _calculateOutsideDimensions();
     });
   }
@@ -98,7 +93,6 @@ class _EditFormPageState extends State<EditFormPage> {
     _outsideLController.dispose();
     _outsideWController.dispose();
     _outsideHController.dispose();
-
     _workPlaceNode.dispose();
     _instructorNode.dispose();
     _productNoNode.dispose();
@@ -119,7 +113,6 @@ class _EditFormPageState extends State<EditFormPage> {
     super.dispose();
   }
   
-  // 👈 【修正】外寸の自動計算ロジックを拡張
   void _calculateOutsideDimensions() {
     final insideL = double.tryParse(rec.insideLength ?? '');
     final insideW = double.tryParse(rec.insideWidth ?? '');
@@ -132,27 +125,22 @@ class _EditFormPageState extends State<EditFormPage> {
     final getaMm = rec.getaOrSuriSpec.yobisun?.mmValue ?? 0;
     final subzaiMm = rec.subzai.yobisun?.mmValue ?? 0;
 
-    // スカシ or メクラ
     if (rec.packageStyle == PackageStyle.sukashi || rec.packageStyle == PackageStyle.mekura) {
       if (rec.materialType == ProductMaterialType.domestic) {
         newOutsideL = insideL + 60;
         newOutsideW = insideW + 60;
         newOutsideH = insideH + getaMm + subzaiMm + 40;
-      } else { // LVL or 熱処理
+      } else {
         newOutsideL = insideL + 100;
         newOutsideW = insideW + 100;
         newOutsideH = insideH + getaMm + subzaiMm + 50;
       }
     }
-    // 他の荷姿の条件はここに追加
 
     if (newOutsideL != null) _outsideLController.text = newOutsideL.toInt().toString();
     if (newOutsideW != null) _outsideWController.text = newOutsideW.toInt().toString();
     if (newOutsideH != null) _outsideHController.text = newOutsideH.toInt().toString();
   }
-
-  // 👈 【削除】_generateAllPreviews() は不要
-  // 👈 【削除】_generatePreview() は不要
 
   T? _numOrNull<T extends num>(String? s) {
     if (s == null || s.trim().isEmpty) return null;
@@ -161,8 +149,6 @@ class _EditFormPageState extends State<EditFormPage> {
     if (T == int) return v.toInt() as T;
     return v.toDouble() as T;
   }
-
-  // --- Widget Builders ---
 
   Widget _numField({
     required String label,
@@ -173,7 +159,6 @@ class _EditFormPageState extends State<EditFormPage> {
     FocusNode? focusNode,
     FocusNode? nextNode,
     TextEditingController? controller,
-    // 👈 【追加】キーボードタイプを指定できるように
     TextInputType? keyboardType,
   }) {
     return TextFormField(
@@ -186,7 +171,6 @@ class _EditFormPageState extends State<EditFormPage> {
         border: const OutlineInputBorder(),
         contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
-      // 👈 【修正】キーボードタイプを適用
       keyboardType: keyboardType ?? const TextInputType.numberWithOptions(decimal: true),
       validator: (v) {
         if (v == null || v.isEmpty) return null;
@@ -212,7 +196,6 @@ class _EditFormPageState extends State<EditFormPage> {
     FocusNode? focusNode,
     FocusNode? nextNode,
     TextEditingController? controller,
-    // 👈 【追加】キーボードタイプを指定できるように
     TextInputType? keyboardType,
   }) {
     return TextFormField(
@@ -226,7 +209,6 @@ class _EditFormPageState extends State<EditFormPage> {
         alignLabelWithHint: maxLines > 1,
       ),
       maxLines: maxLines,
-      // 👈 【修正】キーボードタイプを適用
       keyboardType: keyboardType,
       onChanged: onChanged,
       onFieldSubmitted: (_) {
@@ -413,7 +395,6 @@ class _EditFormPageState extends State<EditFormPage> {
     );
   }
   
-  // (メソッド _saveToHistory, _printPreview, _saveAsTemplate, _overwriteTemplate は変更なし)
   Future<void> _saveToHistory() async {
     if (!_formKey.currentState!.validate()) {
        ScaffoldMessenger.of(context).showSnackBar(
@@ -606,7 +587,6 @@ class _EditFormPageState extends State<EditFormPage> {
                       ),
                     )),
                     const SizedBox(width: 8),
-                    // 👈 【修正】キーボードタイプをテンキーに変更
                     Expanded(child: _textField(label: '作業場所', initial: rec.workPlace, onChanged: (v) => rec.workPlace = v, focusNode: _workPlaceNode, nextNode: _instructorNode, keyboardType: TextInputType.number)),
                     const SizedBox(width: 8),
                     Expanded(child: _textField(label: '指示者', initial: rec.instructor, onChanged: (v) => rec.instructor = v, focusNode: _instructorNode, nextNode: _productNoNode)),
@@ -637,7 +617,6 @@ class _EditFormPageState extends State<EditFormPage> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        // 👈 【修正】キーボードタイプをテンキーに変更 & 計算処理を呼び出し
                         Expanded(child: _textField(label: 'L', initial: rec.insideLength, onChanged: (v) { rec.insideLength = v; _calculateOutsideDimensions(); }, focusNode: _insideLNode, nextNode: _insideWNode, keyboardType: TextInputType.number)),
                         const SizedBox(width: 8),
                         Expanded(child: _textField(label: 'W', initial: rec.insideWidth, onChanged: (v) { rec.insideWidth = v; _calculateOutsideDimensions(); }, focusNode: _insideWNode, nextNode: _insideHNode, keyboardType: TextInputType.number)),
@@ -650,7 +629,6 @@ class _EditFormPageState extends State<EditFormPage> {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        // 👈 【修正】Controllerを使用
                         Expanded(child: _textField(label: 'L', controller: _outsideLController, focusNode: _outsideLNode, nextNode: _outsideWNode, keyboardType: TextInputType.number)),
                         const SizedBox(width: 8),
                         Expanded(child: _textField(label: 'W', controller: _outsideWController, focusNode: _outsideWNode, nextNode: _outsideHNode, keyboardType: TextInputType.number)),
@@ -710,7 +688,6 @@ class _EditFormPageState extends State<EditFormPage> {
                 const SizedBox(height: 6),
                 Column(
                   children: [
-                    // 👈 【変更】Uint8Listを渡す
                     _drawingButton('滑材', 'subzai', rec.subzaiDrawingImage, (image) {
                       setState(() => rec.subzaiDrawingImage = image);
                     }, 'assets/images/国内工注票滑材.jpg'),
@@ -783,28 +760,23 @@ class _EditFormPageState extends State<EditFormPage> {
     );
   }
 
-  // 👈 【変更】引数と表示ウィジェットを更新
   Widget _drawingButton(String label, String key, Uint8List? imageBytes, Function(Uint8List?) onSave, String imagePath) {
     return Column(
       children: [
         FractionallySizedBox(
           widthFactor: 0.8,
-          child: AspectRatio(
-            aspectRatio: 4 / 3,
-            child: InkWell(
-              onTap: () => _navigateToDrawingPage(imageBytes, onSave, imagePath),
-              child: Container(
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade400),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  // 👈 【変更】保存された画像データがあればそれを表示
-                  child: imageBytes != null
-                      ? Image.memory(imageBytes, fit: BoxFit.contain)
-                      : Image.asset(imagePath, fit: BoxFit.contain),
-                ),
+          child: InkWell(
+            onTap: () => _navigateToDrawingPage(imageBytes, onSave, imagePath),
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade400),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: imageBytes != null
+                    ? Image.memory(imageBytes)
+                    : Image.asset(imagePath),
               ),
             ),
           ),
@@ -815,13 +787,12 @@ class _EditFormPageState extends State<EditFormPage> {
     );
   }
 
-  // 👈 【変更】描画ページへのナビゲーションを更新
-  void _navigateToDrawingPage(Uint8List? initialImage, Function(Uint8List?) onSave, String imagePath) async {
+  void _navigateToDrawingPage(Uint8List? currentImage, Function(Uint8List?) onSave, String bgImagePath) async {
     final result = await Navigator.of(context).push<Uint8List?>(
       MaterialPageRoute(
         builder: (_) => DrawingPage(
-          initialImage: initialImage,
-          backgroundImage: imagePath,
+          initialImage: currentImage,
+          backgroundImage: bgImagePath,
         ),
       ),
     );

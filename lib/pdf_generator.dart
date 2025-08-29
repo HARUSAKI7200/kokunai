@@ -13,12 +13,10 @@ class PdfGenerator {
   Future<List<int>> buildPdf(List<FormRecord> records) async {
     final doc = pw.Document();
 
-    // フォントデータを読み込む
     final fontData =
         await rootBundle.load("assets/fonts/NotoSansJP-Regular.ttf");
     final ttf = pw.Font.ttf(fontData);
 
-    // 背景画像を事前に読み込む
     final yokoshitaImage = pw.MemoryImage(
       (await rootBundle.load('assets/images/国内工注票腰下図面.jpg'))
           .buffer
@@ -44,7 +42,6 @@ class PdfGenerator {
           pageFormat: pdf.PdfPageFormat.a4,
           margin: const pw.EdgeInsets.all(28),
           build: (ctx) {
-            // 読み込んだ画像をビルドメソッドに渡す
             return _buildPageContent(ctx, record, ttf,
                 yokoshitaImage, hiraichiImage, subzaiImage);
           },
@@ -54,7 +51,6 @@ class PdfGenerator {
     return await doc.save();
   }
 
-  // 引数に各画像オブジェクトを追加
   pw.Widget _buildPageContent(
       pw.Context ctx,
       FormRecord r,
@@ -67,15 +63,12 @@ class PdfGenerator {
       children: [
         _buildHeader(r),
         pw.SizedBox(height: 12),
-        // 描画メソッドに画像オブジェクトを渡す
         _buildDrawings(ctx, r, font, yokoshitaImage, hiraichiImage, subzaiImage),
         pw.SizedBox(height: 12),
-        // 部材情報と備考欄を左右に分割するレイアウトに変更
         pw.Expanded(
           child: pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // 左側：部材情報
               pw.Expanded(
                 flex: 1,
                 child: pw.Column(
@@ -90,7 +83,6 @@ class PdfGenerator {
                 ),
               ),
               pw.SizedBox(width: 12),
-              // 右側：備考欄
               pw.Expanded(
                 flex: 1,
                 child: pw.Column(
@@ -219,7 +211,6 @@ class PdfGenerator {
         ]);
   }
 
-  // 👈 【変更】描画データを画像として直接表示する
   pw.Widget _buildDrawings(
       pw.Context ctx,
       FormRecord r,
@@ -227,51 +218,81 @@ class PdfGenerator {
       pw.MemoryImage yokoshitaImage,
       pw.MemoryImage hiraichiImage,
       pw.MemoryImage subzaiImage) {
+    
     pw.Widget drawingBox(
         String title, Uint8List? drawingImage, pw.MemoryImage defaultImage) {
+      
+      final imageProvider = drawingImage != null
+          ? pw.MemoryImage(drawingImage)
+          : defaultImage;
+
       return pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
+        mainAxisSize: pw.MainAxisSize.min,
         children: [
           pw.Text(title,
               style:
                   pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 2),
           pw.Expanded(
-            child: pw.Container(
-              width: double.infinity,
-              decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: pdf.PdfColors.grey, width: 0.5)),
-              child: drawingImage != null
-                  ? pw.Image(pw.MemoryImage(drawingImage), fit: pw.BoxFit.contain)
-                  : pw.Image(defaultImage, fit: pw.BoxFit.contain),
+            child: pw.FittedBox(
+              fit: pw.BoxFit.contain,
+              child: pw.Container(
+                decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: pdf.PdfColors.black, width: 1.0)),
+                child: pw.Image(imageProvider),
+              ),
             ),
           ),
         ],
       );
     }
 
+    const double totalHeight = 280;
+    const double spacing = 8;
+    final double hiraichiHeight = (totalHeight - spacing) * 3 / 5;
+    final double subzaiHeight = (totalHeight - spacing) * 2 / 5;
+
     return pw.SizedBox(
-      height: 280,
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-        children: [
-          pw.Expanded(
-              flex: 2, child: drawingBox('腰下', r.yokoshitaDrawingImage, yokoshitaImage)),
-          pw.SizedBox(width: 8),
-          pw.Expanded(
-            flex: 2,
-            child: pw.Column(children: [
-              pw.Expanded(
-                  flex: 3,
-                  child: drawingBox('側ツマ', r.hiraichiDrawingImage, hiraichiImage)),
-              pw.SizedBox(height: 8),
-              pw.Expanded(
-                  flex: 2,
-                  child: drawingBox('滑材', r.subzaiDrawingImage, subzaiImage)),
-            ]),
-          ),
-        ],
-      ),
+      height: totalHeight,
+      child: pw.LayoutBuilder(builder: (context, constraints) {
+        final double halfWidth = (constraints!.maxWidth - spacing) / 2;
+        return pw.Stack(
+          children: [
+            // --- 腰下 ---
+            pw.Positioned(
+              left: 0,
+              top: 0,
+              // 【修正】Positionedの中にサイズ指定したContainerを配置
+              child: pw.Container(
+                width: halfWidth,
+                height: totalHeight,
+                child: drawingBox('腰下', r.yokoshitaDrawingImage, yokoshitaImage),
+              )
+            ),
+            // --- 側ツマ ---
+            pw.Positioned(
+              left: halfWidth + spacing,
+              top: 0,
+              child: pw.Container(
+                width: halfWidth,
+                height: hiraichiHeight,
+                child: drawingBox('側ツマ', r.hiraichiDrawingImage, hiraichiImage),
+              )
+            ),
+            // --- 滑材 ---
+            pw.Positioned(
+              left: halfWidth + spacing,
+              top: hiraichiHeight + spacing,
+              child: pw.Container(
+                width: halfWidth,
+                height: subzaiHeight,
+                child: drawingBox('滑材', r.subzaiDrawingImage, subzaiImage),
+              )
+            ),
+          ],
+        );
+      }),
     );
   }
 

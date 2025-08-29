@@ -218,81 +218,81 @@ class PdfGenerator {
       pw.MemoryImage yokoshitaImage,
       pw.MemoryImage hiraichiImage,
       pw.MemoryImage subzaiImage) {
-    
-    pw.Widget drawingBox(
-        String title, Uint8List? drawingImage, pw.MemoryImage defaultImage) {
-      
-      final imageProvider = drawingImage != null
-          ? pw.MemoryImage(drawingImage)
-          : defaultImage;
+    const double totalHeight = 280;
+    const double spacing = 8;
+    final double hiraichiHeight = (totalHeight - spacing) * 3 / 5;
+    final double subzaiHeight = (totalHeight - spacing) * 2 / 5;
 
+    final yokoshitaProvider = r.yokoshitaDrawingImage != null ? pw.MemoryImage(r.yokoshitaDrawingImage!) : yokoshitaImage;
+    final hiraichiProvider = r.hiraichiDrawingImage != null ? pw.MemoryImage(r.hiraichiDrawingImage!) : hiraichiImage;
+    final subzaiProvider = r.subzaiDrawingImage != null ? pw.MemoryImage(r.subzaiDrawingImage!) : subzaiImage;
+
+    // 中央配置用の描画ユニット（タイトル＋枠線付き画像）を作成するヘルパー関数
+    pw.Widget createCenteredUnit(String title, pw.ImageProvider imageProvider) {
       return pw.Column(
+        mainAxisSize: pw.MainAxisSize.min, // コンテンツに合わせて高さを最小化
         crossAxisAlignment: pw.CrossAxisAlignment.start,
-        mainAxisSize: pw.MainAxisSize.min,
         children: [
-          pw.Text(title,
-              style:
-                  pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          pw.Text(title, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 2),
-          pw.Expanded(
-            child: pw.FittedBox(
-              fit: pw.BoxFit.contain,
-              child: pw.Container(
-                decoration: pw.BoxDecoration(
-                    border: pw.Border.all(color: pdf.PdfColors.black, width: 1.0)),
-                child: pw.Image(imageProvider),
-              ),
+          // Flexibleを使い、画像がコンテナより大きい場合に縮小されるようにする
+          pw.Flexible(
+            child: pw.Container(
+              decoration: pw.BoxDecoration(border: pw.Border.all(color: pdf.PdfColors.black, width: 2.0)),
+              child: pw.Image(imageProvider, fit: pw.BoxFit.contain),
             ),
           ),
         ],
       );
     }
 
-    const double totalHeight = 280;
-    const double spacing = 8;
-    final double hiraichiHeight = (totalHeight - spacing) * 3 / 5;
-    final double subzaiHeight = (totalHeight - spacing) * 2 / 5;
-
     return pw.SizedBox(
       height: totalHeight,
-      child: pw.LayoutBuilder(builder: (context, constraints) {
-        final double halfWidth = (constraints!.maxWidth - spacing) / 2;
-        return pw.Stack(
-          children: [
-            // --- 腰下 ---
-            pw.Positioned(
-              left: 0,
-              top: 0,
-              // 【修正】Positionedの中にサイズ指定したContainerを配置
-              child: pw.Container(
-                width: halfWidth,
-                height: totalHeight,
-                child: drawingBox('腰下', r.yokoshitaDrawingImage, yokoshitaImage),
-              )
+      child: pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          // --- 左カラム: 腰下 ---
+          pw.Expanded(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                pw.Text('腰下', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 2),
+                // Expandedを使い、残りの垂直スペースをすべて埋める
+                pw.Expanded(
+                  child: pw.Container(
+                    decoration: pw.BoxDecoration(border: pw.Border.all(color: pdf.PdfColors.black, width: 2.5)),
+                    child: pw.Image(yokoshitaProvider, fit: pw.BoxFit.contain),
+                  ),
+                ),
+              ],
             ),
-            // --- 側ツマ ---
-            pw.Positioned(
-              left: halfWidth + spacing,
-              top: 0,
-              child: pw.Container(
-                width: halfWidth,
-                height: hiraichiHeight,
-                child: drawingBox('側ツマ', r.hiraichiDrawingImage, hiraichiImage),
-              )
+          ),
+
+          pw.SizedBox(width: spacing),
+
+          // --- 右カラム: 側ツマ & 滑材 ---
+          pw.Expanded(
+            child: pw.Column(
+              children: [
+                // --- 側ツマ ---
+                pw.SizedBox(
+                  height: hiraichiHeight,
+                  // Centerウィジェットで、中の要素を垂直・水平方向の中央に配置
+                  child: pw.Center(child: createCenteredUnit('側ツマ', hiraichiProvider)),
+                ),
+                pw.SizedBox(height: spacing),
+                // --- 滑材 ---
+                pw.SizedBox(
+                  height: subzaiHeight,
+                  // Centerウィジェットで、中の要素を垂直・水平方向の中央に配置
+                  child: pw.Center(child: createCenteredUnit('滑材', subzaiProvider)),
+                ),
+              ],
             ),
-            // --- 滑材 ---
-            pw.Positioned(
-              left: halfWidth + spacing,
-              top: hiraichiHeight + spacing,
-              child: pw.Container(
-                width: halfWidth,
-                height: subzaiHeight,
-                child: drawingBox('滑材', r.subzaiDrawingImage, subzaiImage),
-              )
-            ),
-          ],
-        );
-      }),
+          ),
+        ],
+      ),
     );
   }
 

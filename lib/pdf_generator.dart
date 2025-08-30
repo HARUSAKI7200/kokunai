@@ -1,13 +1,10 @@
 // lib/pdf_generator.dart
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart' as pdf;
 import 'package:pdf/widgets.dart' as pw;
 import 'models.dart';
-// 描画モデルクラスをインポート
-import 'drawing_canvas.dart' as dc;
 
 class PdfGenerator {
   Future<List<int>> buildPdf(List<FormRecord> records) async {
@@ -42,8 +39,8 @@ class PdfGenerator {
           pageFormat: pdf.PdfPageFormat.a4,
           margin: const pw.EdgeInsets.all(28),
           build: (ctx) {
-            return _buildPageContent(ctx, record, ttf,
-                yokoshitaImage, hiraichiImage, subzaiImage);
+            return _buildPageContent(
+                ctx, record, yokoshitaImage, hiraichiImage, subzaiImage);
           },
         ),
       );
@@ -51,38 +48,66 @@ class PdfGenerator {
     return await doc.save();
   }
 
+  // 【変更】ページ全体のレイアウト比率を調整
   pw.Widget _buildPageContent(
       pw.Context ctx,
       FormRecord r,
-      pw.Font font,
       pw.MemoryImage yokoshitaImage,
       pw.MemoryImage hiraichiImage,
       pw.MemoryImage subzaiImage) {
+    // ページ全体のレイアウトを定義
     return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
-        _buildHeader(r),
-        pw.SizedBox(height: 12),
-        _buildDrawings(ctx, r, font, yokoshitaImage, hiraichiImage, subzaiImage),
-        pw.SizedBox(height: 12),
+        // --- 上部セクション（ヘッダーと図面） ---
+        // Expandedを使い、下部セクションの高さを確保した上で残りのスペースを全て埋める
         pw.Expanded(
+          flex: 4, // 上部と下部の比率を定義
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+            children: [
+              _buildHeader(r),
+              pw.SizedBox(height: 12),
+              // 図面エリア全体にパディングを追加し、枠線が消える問題を解決
+              pw.Expanded(
+                child: pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 1.0),
+                  child: _buildDrawings(
+                      ctx, r, yokoshitaImage, hiraichiImage, subzaiImage),
+                ),
+              ),
+            ],
+          ),
+        ),
+        pw.SizedBox(height: 8),
+
+        // --- 下部セクション（部材情報と備考）---
+        pw.SizedBox(
+          height: 280, // 下部セクションの高さを固定
           child: pw.Row(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
+              // --- 部材情報 ---
               pw.Expanded(
                 flex: 1,
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                  children: [
-                    pw.Text('部材情報',
-                        style: pw.TextStyle(
-                            fontSize: 12, fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 4),
-                    _buildComponentsTable(r),
-                  ],
+                //【最重要修正】Transform.translateを使い、部材情報セクション全体を上に移動させる
+                child: pw.Transform.translate(
+                  offset: const pdf.PdfPoint(0, -75), // Y方向に-75ポイント移動
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                    children: [
+                      pw.Text('部材情報',
+                          style: pw.TextStyle(
+                              fontSize: 13, fontWeight: pw.FontWeight.bold)),
+                      pw.SizedBox(height: 4),
+                      // テーブルが見切れないように高さを十分に確保
+                      pw.SizedBox(
+                          height: 340, child: _buildComponentsTable(r)),
+                    ],
+                  ),
                 ),
               ),
               pw.SizedBox(width: 12),
+              // --- 備考 ---
               pw.Expanded(
                 flex: 1,
                 child: pw.Column(
@@ -90,8 +115,9 @@ class PdfGenerator {
                   children: [
                     pw.Text('備考',
                         style: pw.TextStyle(
-                            fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                            fontSize: 13, fontWeight: pw.FontWeight.bold)),
                     pw.SizedBox(height: 4),
+                    // Expandedを使い、下部セクションの残りの高さを埋める
                     pw.Expanded(
                       child: pw.Container(
                         decoration: pw.BoxDecoration(
@@ -114,6 +140,7 @@ class PdfGenerator {
     );
   }
 
+  // 【変更】ヘッダー内のフォントサイズを全体的に大きく
   pw.Widget _buildHeader(FormRecord r) {
     final shipDateFormat = DateFormat('MM/dd');
     final insideDim = [r.insideLength, r.insideWidth, r.insideHeight]
@@ -122,16 +149,16 @@ class PdfGenerator {
     final outsideDim = [r.outsideLength, r.outsideWidth, r.outsideHeight]
         .where((s) => s != null && s.isNotEmpty)
         .join(' x ');
-    
+
     return pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
         children: [
           pw.SizedBox(
-            height: 40,
+            height: 45, // 高さを少し広げる
             child: pw.Stack(alignment: pw.Alignment.center, children: [
               pw.Text('工　注　票',
                   style: pw.TextStyle(
-                      fontSize: 20,
+                      fontSize: 24, // タイトルを大きく
                       fontWeight: pw.FontWeight.bold,
                       decoration: pw.TextDecoration.underline)),
               pw.Positioned(
@@ -173,26 +200,28 @@ class PdfGenerator {
                 pw.TableRow(children: [
                   _labelCell('製番'), _valueCell(r.productNo),
                   _labelCell('品名'), _valueCell(r.productName),
-                  _labelCell('荷姿'), _valueCell(packageStyleLabel(r.packageStyle)),
-                  _labelCell('材質'), _valueCell(productMaterialTypeLabel(r.materialType)),
+                  _labelCell('荷姿'),
+                  _valueCell(packageStyleLabel(r.packageStyle)),
+                  _labelCell('材質'),
+                  _valueCell(productMaterialTypeLabel(r.materialType)),
                 ]),
               ]),
           pw.Table(
-            border: pw.TableBorder.all(width: 0.6),
-            defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
-            columnWidths: const {
-              0: pw.IntrinsicColumnWidth(), 1: pw.FlexColumnWidth(2.5),
-              2: pw.IntrinsicColumnWidth(), 3: pw.FlexColumnWidth(2.5),
-              4: pw.IntrinsicColumnWidth(), 5: pw.FlexColumnWidth(1),
-            },
-            children: [
-              pw.TableRow(children: [
-                _labelCell('内寸'), _bigValueCell(insideDim),
-                _labelCell('外寸'), _bigValueCell(outsideDim),
-                _labelCell('数量'), _valueCell(r.quantity != null ? '${r.quantity} C/S' : ''),
-              ])
-            ]
-          ),
+              border: pw.TableBorder.all(width: 0.6),
+              defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+              columnWidths: const {
+                0: pw.IntrinsicColumnWidth(), 1: pw.FlexColumnWidth(2.5),
+                2: pw.IntrinsicColumnWidth(), 3: pw.FlexColumnWidth(2.5),
+                4: pw.IntrinsicColumnWidth(), 5: pw.FlexColumnWidth(1),
+              },
+              children: [
+                pw.TableRow(children: [
+                  _labelCell('内寸'), _bigValueCell(insideDim),
+                  _labelCell('外寸'), _bigValueCell(outsideDim),
+                  _labelCell('数量'),
+                  _valueCell(r.quantity != null ? '${r.quantity} C/S' : ''),
+                ])
+              ]),
           pw.Table(
               border: pw.TableBorder.all(width: 0.6),
               defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
@@ -205,50 +234,55 @@ class PdfGenerator {
                   _labelCell('重量(net)'),
                   _valueCell(r.weightKg != null ? '${r.weightKg} kg' : ''),
                   _labelCell('重量(gross)'),
-                  _valueCell(r.weightGrossKg != null ? '${r.weightGrossKg} kg' : ''),
+                  _valueCell(
+                      r.weightGrossKg != null ? '${r.weightGrossKg} kg' : ''),
                 ])
               ]),
         ]);
   }
 
-  pw.Widget _buildDrawings(
-      pw.Context ctx,
-      FormRecord r,
-      pw.Font font,
-      pw.MemoryImage yokoshitaImage,
-      pw.MemoryImage hiraichiImage,
+  // 【変更】図面描画エリアの固定の高さを削除し、親ウィジェットのサイズに追従するように
+  pw.Widget _buildDrawings(pw.Context ctx, FormRecord r,
+      pw.MemoryImage yokoshitaImage, pw.MemoryImage hiraichiImage,
       pw.MemoryImage subzaiImage) {
-    const double totalHeight = 280;
-    const double spacing = 8;
-    final double hiraichiHeight = (totalHeight - spacing) * 3 / 5;
-    final double subzaiHeight = (totalHeight - spacing) * 2 / 5;
 
-    final yokoshitaProvider = r.yokoshitaDrawingImage != null ? pw.MemoryImage(r.yokoshitaDrawingImage!) : yokoshitaImage;
-    final hiraichiProvider = r.hiraichiDrawingImage != null ? pw.MemoryImage(r.hiraichiDrawingImage!) : hiraichiImage;
-    final subzaiProvider = r.subzaiDrawingImage != null ? pw.MemoryImage(r.subzaiDrawingImage!) : subzaiImage;
+    final yokoshitaProvider = r.yokoshitaDrawingImage != null
+        ? pw.MemoryImage(r.yokoshitaDrawingImage!)
+        : yokoshitaImage;
+    final hiraichiProvider = r.hiraichiDrawingImage != null
+        ? pw.MemoryImage(r.hiraichiDrawingImage!)
+        : hiraichiImage;
+    final subzaiProvider = r.subzaiDrawingImage != null
+        ? pw.MemoryImage(r.subzaiDrawingImage!)
+        : subzaiImage;
 
-    // 中央配置用の描画ユニット（タイトル＋枠線付き画像）を作成するヘルパー関数
     pw.Widget createCenteredUnit(String title, pw.ImageProvider imageProvider) {
       return pw.Column(
-        mainAxisSize: pw.MainAxisSize.min, // コンテンツに合わせて高さを最小化
+        mainAxisSize: pw.MainAxisSize.min,
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          pw.Text(title, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+          pw.Text(title,
+              style:
+                  pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 2),
-          // Flexibleを使い、画像がコンテナより大きい場合に縮小されるようにする
           pw.Flexible(
             child: pw.Container(
-              decoration: pw.BoxDecoration(border: pw.Border.all(color: pdf.PdfColors.black, width: 2.0)),
+              decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: pdf.PdfColors.black, width: 2.0)),
               child: pw.Image(imageProvider, fit: pw.BoxFit.contain),
             ),
           ),
         ],
       );
     }
+    
+    // LayoutBuilderが親（Expanded）からサイズを受け取り、それに基づいてレイアウトを計算する
+    return pw.LayoutBuilder(builder: (context, constraints) {
+      const double spacing = 8;
+      final double hiraichiHeight = (constraints!.maxHeight - spacing) * 3 / 5;
+      final double subzaiHeight = (constraints.maxHeight - spacing) * 2 / 5;
 
-    return pw.SizedBox(
-      height: totalHeight,
-      child: pw.Row(
+      return pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           // --- 左カラム: 腰下 ---
@@ -256,12 +290,15 @@ class PdfGenerator {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.stretch,
               children: [
-                pw.Text('腰下', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                pw.Text('腰下',
+                    style: pw.TextStyle(
+                        fontSize: 10, fontWeight: pw.FontWeight.bold)),
                 pw.SizedBox(height: 2),
-                // Expandedを使い、残りの垂直スペースをすべて埋める
                 pw.Expanded(
                   child: pw.Container(
-                    decoration: pw.BoxDecoration(border: pw.Border.all(color: pdf.PdfColors.black, width: 2.5)),
+                    decoration: pw.BoxDecoration(
+                        border: pw.Border.all(
+                            color: pdf.PdfColors.black, width: 2.0)),
                     child: pw.Image(yokoshitaProvider, fit: pw.BoxFit.contain),
                   ),
                 ),
@@ -275,34 +312,32 @@ class PdfGenerator {
           pw.Expanded(
             child: pw.Column(
               children: [
-                // --- 側ツマ ---
                 pw.SizedBox(
                   height: hiraichiHeight,
-                  // Centerウィジェットで、中の要素を垂直・水平方向の中央に配置
-                  child: pw.Center(child: createCenteredUnit('側ツマ', hiraichiProvider)),
+                  child: pw.Center(
+                      child: createCenteredUnit('側ツマ', hiraichiProvider)),
                 ),
                 pw.SizedBox(height: spacing),
-                // --- 滑材 ---
                 pw.SizedBox(
                   height: subzaiHeight,
-                  // Centerウィジェットで、中の要素を垂直・水平方向の中央に配置
-                  child: pw.Center(child: createCenteredUnit('滑材', subzaiProvider)),
+                  child:
+                      pw.Center(child: createCenteredUnit('滑材', subzaiProvider)),
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
+      );
+    });
   }
 
+  // 【変更】部材情報テーブルのフォントサイズを大きく
   pw.Widget _buildComponentsTable(FormRecord r) {
     const headerStyle =
-        pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold);
-    const cellStyle = pw.TextStyle(fontSize: 9);
+        pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold); // サイズアップ
+    const cellStyle = pw.TextStyle(fontSize: 10); // サイズアップ
 
     final insideL = double.tryParse(r.insideLength ?? '');
-    final insideW = double.tryParse(r.insideWidth ?? '');
 
     String getCalculatedLength(String partName, ComponentSpec spec) {
       if (spec.lengthMm != null) return spec.lengthMm!.toInt().toString();
@@ -315,16 +350,19 @@ class PdfGenerator {
           if (r.materialType == ProductMaterialType.domestic) {
             if (partName == '滑材' && insideL != null) calculatedValue = insideL + 30;
             if (partName == 'ゲタ' && insideL != null) calculatedValue = insideL + 60;
-            if (['H', '負荷材1', '負荷材2', '押さえ', '梁'].contains(partName)) return r.insideLength ?? '-';
+            if (['H', '負荷材1', '負荷材2', '押さえ', '梁'].contains(partName))
+              return r.insideLength ?? '-';
           } else {
             if (partName == '滑材' && insideL != null) calculatedValue = insideL + 50;
             if (partName == 'ゲタ' && insideL != null) calculatedValue = insideL + 100;
-            if (['H', '負荷材1', '負荷材2', '押さえ', '梁'].contains(partName)) return r.insideWidth ?? '-';
+            if (['H', '負荷材1', '負荷材2', '押さえ', '梁'].contains(partName))
+              return r.insideWidth ?? '-';
           }
           break;
         case PackageStyle.yokoshita:
           if (partName == '滑材') return r.insideLength ?? '-';
-          if (['ゲタ', 'H', '負荷材1', '負荷材2'].contains(partName)) return r.insideWidth ?? '-';
+          if (['ゲタ', 'H', '負荷材1', '負荷材2'].contains(partName))
+            return r.insideWidth ?? '-';
           break;
         default:
           break;
@@ -338,30 +376,22 @@ class PdfGenerator {
 
     final List<List<String>> tableData = [];
     final components = {
-      '滑材': r.subzai,
-      'ゲタ': r.getaOrSuriSpec,
-      'H': r.h,
-      '負荷材1': r.fukazai1,
-      '負荷材2': r.fukazai2,
-      '根止め1': r.nedome1,
-      '根止め2': r.nedome2,
-      '根止め3': r.nedome3,
-      '根止め4': r.nedome4,
-      '押さえ': r.osae,
-      '梁': r.ryo,
-      '他1': r.other1,
-      '他2': r.other2,
+      '滑材': r.subzai, 'ゲタ': r.getaOrSuriSpec,
+      'H': r.h, '負荷材1': r.fukazai1, '負荷材2': r.fukazai2,
+      '根止め1': r.nedome1, '根止め2': r.nedome2, '根止め3': r.nedome3, '根止め4': r.nedome4,
+      '押さえ': r.osae, '梁': r.ryo,
+      '他1': r.other1, '他2': r.other2,
     };
 
     components.forEach((name, spec) {
       if ((spec.count != null && spec.count! > 0) ||
           (spec.partName != null && spec.partName!.isNotEmpty)) {
-        
-        String displayName = (spec.partName?.isNotEmpty == true) ? spec.partName! : name;
+        String displayName =
+            (spec.partName?.isNotEmpty == true) ? spec.partName! : name;
         if (name == 'ゲタ') {
           displayName = getaOrSuriTypeLabel(r.getaOrSuri);
         }
-        
+
         tableData.add([
           displayName,
           spec.yobisun != null ? yobisunLabel(spec.yobisun!) : '-',
@@ -383,27 +413,26 @@ class PdfGenerator {
       cellAlignments: {0: pw.Alignment.centerLeft},
       border: pw.TableBorder.all(width: 0.5, color: pdf.PdfColors.black),
       columnWidths: const {
-        0: pw.FlexColumnWidth(2.5),
-        1: pw.FlexColumnWidth(1.5),
-        2: pw.FlexColumnWidth(1.5),
-        3: pw.FlexColumnWidth(1)
+        0: pw.FlexColumnWidth(2.5), 1: pw.FlexColumnWidth(1.5),
+        2: pw.FlexColumnWidth(1.5), 3: pw.FlexColumnWidth(1)
       },
     );
   }
 
+  // 【変更】ヘッダー内のラベル・値のフォントサイズを大きく
   pw.Widget _labelCell(String text) => pw.Padding(
         padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: pw.Text(text, style: const pw.TextStyle(fontSize: 9)),
+        child: pw.Text(text, style: const pw.TextStyle(fontSize: 10)), // サイズアップ
       );
 
   pw.Widget _valueCell(String text) => pw.Container(
         padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        child: pw.Text(text, style: const pw.TextStyle(fontSize: 10)),
+        child: pw.Text(text, style: const pw.TextStyle(fontSize: 11)), // サイズアップ
       );
-  
+
   pw.Widget _bigValueCell(String text) => pw.Container(
         padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-        constraints: const pw.BoxConstraints(minHeight: 17),
-        child: pw.Text(text, style: const pw.TextStyle(fontSize: 12)),
+        constraints: const pw.BoxConstraints(minHeight: 18),
+        child: pw.Text(text, style: const pw.TextStyle(fontSize: 14)), // サイズアップ
       );
 }

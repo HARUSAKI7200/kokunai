@@ -95,14 +95,12 @@ class _DrawingPageState extends State<DrawingPage> {
   }
 
   Offset _clampPosition(Offset position) {
-    // ▼▼▼ 【変更】クランプ範囲をツールによって切り替える ▼▼▼
     Rect? bounds;
     if (_isShapeToolSelected) {
       bounds = _drawingAreaBounds ?? _imageBounds;
     } else {
       bounds = _imageBounds;
     }
-    // ▲▲▲
     
     if (bounds == null) return position;
 
@@ -132,39 +130,109 @@ class _DrawingPageState extends State<DrawingPage> {
     return Offset(originalPoint.dx, bestSnapY);
   }
 
+  Offset _snapToOtherRectangles(Offset pos) {
+    if (!_isRectangleToolSelected) return pos;
+
+    final tool = _selectedTool;
+    final previewWidth = _getRectangleWidth(tool);
+    final previewHeight = _getRectangleHeight(tool);
+    
+    final previewLeft = pos.dx - previewWidth;
+    final previewRight = pos.dx;
+    final previewTop = pos.dy - previewHeight;
+    final previewBottom = pos.dy;
+
+    double finalDx = pos.dx;
+    double minDistance = double.infinity;
+    const snapProximity = 15.0;
+
+    for (final element in _elementsNotifier.value) {
+      Rect? existingRect;
+      if (element is Rectangle) existingRect = element.rect;
+      if (element is CrossedRectangle) existingRect = element.rect;
+      if (element is SlashedRectangle) existingRect = element.rect;
+
+      if (existingRect != null) {
+        final isVerticallyAligned = (previewTop < existingRect.bottom && previewBottom > existingRect.top);
+        if (!isVerticallyAligned) continue;
+
+        final distanceToRightEdge = (previewLeft - existingRect.right).abs();
+        if (distanceToRightEdge < snapProximity && distanceToRightEdge < minDistance) {
+          minDistance = distanceToRightEdge;
+          finalDx = existingRect.right + previewWidth;
+        }
+
+        final distanceToLeftEdge = (previewRight - existingRect.left).abs();
+        if (distanceToLeftEdge < snapProximity && distanceToLeftEdge < minDistance) {
+          minDistance = distanceToLeftEdge;
+          finalDx = existingRect.left;
+        }
+      }
+    }
+    return Offset(finalDx, pos.dy);
+  }
+
   bool get _isRectangleToolSelected {
     return _selectedTool == DrawingTool.rectangle ||
         _selectedTool == DrawingTool.crossedRectangle ||
         _selectedTool == DrawingTool.slashedRectangle;
   }
   
-  // ▼▼▼ 【追加】四角形・直線・寸法線かを判定するヘルパー ▼▼▼
   bool get _isShapeToolSelected {
     return _isRectangleToolSelected ||
         _selectedTool == DrawingTool.line ||
         _selectedTool == DrawingTool.dimension;
   }
-  // ▲▲▲
+  
+  double _getRectangleWidth(DrawingTool tool) {
+    switch (tool) {
+      case DrawingTool.rectangle:
+        return _rectangleWidth;
+      case DrawingTool.crossedRectangle:
+        return _crossedRectangleWidth;
+      case DrawingTool.slashedRectangle:
+        return _slashedRectangleWidth;
+      default:
+        return 0;
+    }
+  }
+
+  double _getRectangleHeight(DrawingTool tool) {
+    switch (tool) {
+      case DrawingTool.rectangle:
+        return _rectangleHeight;
+      case DrawingTool.crossedRectangle:
+        return _crossedRectangleHeight;
+      case DrawingTool.slashedRectangle:
+        return _slashedRectangleHeight;
+      default:
+        return 0;
+    }
+  }
 
   void _onPanDown(DragDownDetails details) {
-    // ▼▼▼ 【変更】常に画像全体の範囲で開始判定を行う ▼▼▼
     if (_imageBounds == null || !_imageBounds!.contains(details.localPosition)) {
       return;
     }
-    // ▲▲▲
     
-    final clampedPos = _clampPosition(details.localPosition);
-    final pos = _isRectangleToolSelected ? _snapToLines(clampedPos) : clampedPos;
+    var pos = _clampPosition(details.localPosition);
+    if (_isRectangleToolSelected) {
+      pos = _snapToLines(pos);
+      pos = _snapToOtherRectangles(pos);
+    }
 
     final currentElements = List<DrawingElement>.from(_elementsNotifier.value);
     switch (_selectedTool) {
       case DrawingTool.pen:
-      case DrawingTool.eraser:
         currentElements.add(DrawingPath(
             id: DateTime.now().millisecondsSinceEpoch,
             points: [pos, pos],
             paint: _createPaintForTool()));
         break;
+      // ▼▼▼ 【変更】消しゴムは何もしない（onPanUpdateで処理するため） ▼▼▼
+      case DrawingTool.eraser:
+        break;
+      // ▲▲▲
       case DrawingTool.line:
         currentElements.add(StraightLine(
             id: DateTime.now().millisecondsSinceEpoch,
@@ -242,6 +310,28 @@ class _DrawingPageState extends State<DrawingPage> {
       return;
     }
 
+    // ▼▼▼ 【変更】消しゴムの処理をここに集約 ▼▼▼
+    if (_selectedTool == DrawingTool.eraser) {
+      final currentElements = List<DrawingElement>.from(_elementsNotifier.value);
+      final elementsToRemove = <DrawingElement>{};
+      
+      // 当たり判定用の四角形を消しゴムのカーソル位置に作成
+      final eraserRect = Rect.fromCircle(center: details.localPosition, radius: 12.0);
+
+      for (final element in currentElements) {
+        if (element.contains(details.localPosition)) {
+           elementsToRemove.add(element);
+        }
+      }
+
+      if (elementsToRemove.isNotEmpty) {
+        currentElements.removeWhere((e) => elementsToRemove.contains(e));
+        _elementsNotifier.value = currentElements;
+      }
+      return;
+    }
+    // ▲▲▲
+
     if (_movingElement != null && _movingElement is DrawingText) {
       final newPosition = details.localPosition - _panStartOffset;
       (_movingElement as DrawingText).position = _clampPosition(newPosition);
@@ -249,8 +339,11 @@ class _DrawingPageState extends State<DrawingPage> {
       return;
     }
 
-    final clampedPos = _clampPosition(details.localPosition);
-    final pos = _isRectangleToolSelected ? _snapToLines(clampedPos) : clampedPos;
+    var pos = _clampPosition(details.localPosition);
+    if (_isRectangleToolSelected) {
+      pos = _snapToLines(pos);
+      pos = _snapToOtherRectangles(pos);
+    }
 
     if (_selectedTool == DrawingTool.text) {
       return;
@@ -297,6 +390,12 @@ class _DrawingPageState extends State<DrawingPage> {
   }
 
   void _onPanEnd(DragEndDetails details) {
+    // ▼▼▼ 【変更】消しゴムは onPanUpdate で処理されるので、ここでは何もしない ▼▼▼
+    if (_selectedTool == DrawingTool.eraser) {
+      return;
+    }
+    // ▲▲▲
+
     if (_movingElement != null) {
       _movingElement = null;
       _panStartOffset = Offset.zero;
@@ -371,13 +470,10 @@ class _DrawingPageState extends State<DrawingPage> {
           ..strokeWidth = 2.0
           ..style = PaintingStyle.stroke
           ..strokeCap = ui.StrokeCap.round;
+      // ▼▼▼ 【変更】消しゴムのPaintは不要になったため削除（もしくはそのままでも影響なし） ▼▼▼
       case DrawingTool.eraser:
-        return Paint()
-          ..color = Colors.transparent
-          ..strokeWidth = 12.0
-          ..blendMode = BlendMode.clear
-          ..style = PaintingStyle.stroke
-          ..strokeCap = ui.StrokeCap.round;
+         return Paint(); // 何も描画しない
+      // ▲▲▲
       case DrawingTool.line:
         return Paint()
           ..color = Colors.black

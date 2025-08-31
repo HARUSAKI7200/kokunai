@@ -110,25 +110,77 @@ class _DrawingPageState extends State<DrawingPage> {
     );
   }
 
+  // ▼▼▼ 【変更】 滑材描画画面のスナップを、四角形の上辺と下辺両対応に修正 ▼▼▼
   Offset _snapToLines(Offset originalPoint) {
-    if (widget.snapLinesY == null || _imageBounds == null) {
+    if (_imageBounds == null) {
       return originalPoint;
     }
 
-    double bestSnapY = originalPoint.dy;
-    double minDistance = double.infinity;
+    // --- 滑材描画画面 (default) の横線スナップ ---
+    if (widget.drawingType == 'default') {
+      const double imageOriginalWidth = 1500.0;
+      const double imageOriginalHeight = 775.0;
+      const double snapYAbsolute = 410.0;
+      const double clampXStartAbsolute = 250.0;
+      const double clampXEndAbsolute = 1221.0;
 
-    for (final relativeY in widget.snapLinesY!) {
-      final absoluteY = _imageBounds!.top + (_imageBounds!.height * relativeY);
-      final distance = (originalPoint.dy - absoluteY).abs();
-
-      if (distance < _snapThreshold && distance < minDistance) {
-        minDistance = distance;
-        bestSnapY = absoluteY;
+      final double snapYOnCanvas = _imageBounds!.top + (_imageBounds!.height * (snapYAbsolute / imageOriginalHeight));
+      final double startXOnCanvas = _imageBounds!.left + (_imageBounds!.width * (clampXStartAbsolute / imageOriginalWidth));
+      final double endXOnCanvas = _imageBounds!.left + (_imageBounds!.width * (clampXEndAbsolute / imageOriginalWidth));
+      
+      // X軸が指定範囲外ならスナップしない
+      if (originalPoint.dx < startXOnCanvas || originalPoint.dx > endXOnCanvas) {
+        return originalPoint;
       }
+
+      // 四角形ツールの場合、上辺と下辺をチェック
+      if (_isRectangleToolSelected) {
+        final rectHeight = _getRectangleHeight(_selectedTool);
+        final topY = originalPoint.dy - rectHeight;
+        final bottomY = originalPoint.dy;
+
+        final distanceToTop = (topY - snapYOnCanvas).abs();
+        final distanceToBottom = (bottomY - snapYOnCanvas).abs();
+
+        // より近い辺をスナップ対象とする
+        if (distanceToTop < _snapThreshold && distanceToTop < distanceToBottom) {
+          // 上辺をスナップ線に合わせる
+          return Offset(originalPoint.dx, snapYOnCanvas + rectHeight);
+        }
+        if (distanceToBottom < _snapThreshold) {
+          // 下辺をスナップ線に合わせる
+          return Offset(originalPoint.dx, snapYOnCanvas);
+        }
+      } else { // 四角形ツール以外（直線など）は、カーソル位置のみチェック
+        final distance = (originalPoint.dy - snapYOnCanvas).abs();
+        if (distance < _snapThreshold) {
+          return Offset(originalPoint.dx, snapYOnCanvas);
+        }
+      }
+
+      return originalPoint;
     }
-    return Offset(originalPoint.dx, bestSnapY);
+
+    // --- 腰下描画画面など、他の画面のスナップ ---
+    if (widget.snapLinesY != null) {
+      double bestSnapY = originalPoint.dy;
+      double minDistance = double.infinity;
+
+      for (final relativeY in widget.snapLinesY!) {
+        final absoluteY = _imageBounds!.top + (_imageBounds!.height * relativeY);
+        final distance = (originalPoint.dy - absoluteY).abs();
+
+        if (distance < _snapThreshold && distance < minDistance) {
+          minDistance = distance;
+          bestSnapY = absoluteY;
+        }
+      }
+      return Offset(originalPoint.dx, bestSnapY);
+    }
+    
+    return originalPoint;
   }
+  // ▲▲▲
 
   Offset _snapToOtherRectangles(Offset pos) {
     if (!_isRectangleToolSelected) return pos;
@@ -136,15 +188,18 @@ class _DrawingPageState extends State<DrawingPage> {
     final tool = _selectedTool;
     final previewWidth = _getRectangleWidth(tool);
     final previewHeight = _getRectangleHeight(tool);
-    
-    final previewLeft = pos.dx - previewWidth;
-    final previewRight = pos.dx;
-    final previewTop = pos.dy - previewHeight;
-    final previewBottom = pos.dy;
 
-    double finalDx = pos.dx;
-    double minDistance = double.infinity;
-    const snapProximity = 15.0;
+    final previewRect = Rect.fromLTRB(
+      pos.dx - previewWidth, 
+      pos.dy - previewHeight, 
+      pos.dx, 
+      pos.dy
+    );
+
+    double bestSnapDx = pos.dx;
+    double bestSnapDy = pos.dy;
+    double minHDistance = _snapThreshold;
+    double minVDistance = _snapThreshold;
 
     for (final element in _elementsNotifier.value) {
       Rect? existingRect;
@@ -152,24 +207,44 @@ class _DrawingPageState extends State<DrawingPage> {
       if (element is CrossedRectangle) existingRect = element.rect;
       if (element is SlashedRectangle) existingRect = element.rect;
 
-      if (existingRect != null) {
-        final isVerticallyAligned = (previewTop < existingRect.bottom && previewBottom > existingRect.top);
-        if (!isVerticallyAligned) continue;
+      if (existingRect == null) continue;
 
-        final distanceToRightEdge = (previewLeft - existingRect.right).abs();
-        if (distanceToRightEdge < snapProximity && distanceToRightEdge < minDistance) {
-          minDistance = distanceToRightEdge;
-          finalDx = existingRect.right + previewWidth;
-        }
+      final isVerticallyOverlapping = (previewRect.top < existingRect.bottom && previewRect.bottom > existingRect.top);
+      if (isVerticallyOverlapping) {
+        final hCandidates = {
+          existingRect.left: (previewRect.right - existingRect.left).abs(),
+          existingRect.right: (previewRect.right - existingRect.right).abs(),
+          existingRect.left + previewWidth: (previewRect.left - existingRect.left).abs(),
+          existingRect.right + previewWidth: (previewRect.left - existingRect.right).abs()
+        };
 
-        final distanceToLeftEdge = (previewRight - existingRect.left).abs();
-        if (distanceToLeftEdge < snapProximity && distanceToLeftEdge < minDistance) {
-          minDistance = distanceToLeftEdge;
-          finalDx = existingRect.left;
-        }
+        hCandidates.forEach((candidateDx, distance) {
+          if (distance < minHDistance) {
+            minHDistance = distance;
+            bestSnapDx = candidateDx;
+          }
+        });
+      }
+
+      final isHorizontallyOverlapping = (previewRect.left < existingRect.right && previewRect.right > existingRect.left);
+      if (isHorizontallyOverlapping) {
+        final vCandidates = {
+          existingRect.top: (previewRect.bottom - existingRect.top).abs(),
+          existingRect.bottom: (previewRect.bottom - existingRect.bottom).abs(),
+          existingRect.top + previewHeight: (previewRect.top - existingRect.top).abs(),
+          existingRect.bottom + previewHeight: (previewRect.top - existingRect.bottom).abs()
+        };
+        
+        vCandidates.forEach((candidateDy, distance) {
+          if (distance < minVDistance) {
+            minVDistance = distance;
+            bestSnapDy = candidateDy;
+          }
+        });
       }
     }
-    return Offset(finalDx, pos.dy);
+
+    return Offset(bestSnapDx, bestSnapDy);
   }
 
   bool get _isRectangleToolSelected {
@@ -216,9 +291,11 @@ class _DrawingPageState extends State<DrawingPage> {
     }
     
     var pos = _clampPosition(details.localPosition);
-    if (_isRectangleToolSelected) {
+    if (_isShapeToolSelected) {
+      if (_isRectangleToolSelected) {
+        pos = _snapToOtherRectangles(pos);
+      }
       pos = _snapToLines(pos);
-      pos = _snapToOtherRectangles(pos);
     }
 
     final currentElements = List<DrawingElement>.from(_elementsNotifier.value);
@@ -229,10 +306,8 @@ class _DrawingPageState extends State<DrawingPage> {
             points: [pos, pos],
             paint: _createPaintForTool()));
         break;
-      // ▼▼▼ 【変更】消しゴムは何もしない（onPanUpdateで処理するため） ▼▼▼
       case DrawingTool.eraser:
         break;
-      // ▲▲▲
       case DrawingTool.line:
         currentElements.add(StraightLine(
             id: DateTime.now().millisecondsSinceEpoch,
@@ -310,14 +385,10 @@ class _DrawingPageState extends State<DrawingPage> {
       return;
     }
 
-    // ▼▼▼ 【変更】消しゴムの処理をここに集約 ▼▼▼
     if (_selectedTool == DrawingTool.eraser) {
       final currentElements = List<DrawingElement>.from(_elementsNotifier.value);
       final elementsToRemove = <DrawingElement>{};
       
-      // 当たり判定用の四角形を消しゴムのカーソル位置に作成
-      final eraserRect = Rect.fromCircle(center: details.localPosition, radius: 12.0);
-
       for (final element in currentElements) {
         if (element.contains(details.localPosition)) {
            elementsToRemove.add(element);
@@ -330,7 +401,6 @@ class _DrawingPageState extends State<DrawingPage> {
       }
       return;
     }
-    // ▲▲▲
 
     if (_movingElement != null && _movingElement is DrawingText) {
       final newPosition = details.localPosition - _panStartOffset;
@@ -340,9 +410,11 @@ class _DrawingPageState extends State<DrawingPage> {
     }
 
     var pos = _clampPosition(details.localPosition);
-    if (_isRectangleToolSelected) {
+    if (_isShapeToolSelected) {
+      if (_isRectangleToolSelected) {
+        pos = _snapToOtherRectangles(pos);
+      }
       pos = _snapToLines(pos);
-      pos = _snapToOtherRectangles(pos);
     }
 
     if (_selectedTool == DrawingTool.text) {
@@ -390,11 +462,9 @@ class _DrawingPageState extends State<DrawingPage> {
   }
 
   void _onPanEnd(DragEndDetails details) {
-    // ▼▼▼ 【変更】消しゴムは onPanUpdate で処理されるので、ここでは何もしない ▼▼▼
     if (_selectedTool == DrawingTool.eraser) {
       return;
     }
-    // ▲▲▲
 
     if (_movingElement != null) {
       _movingElement = null;
@@ -470,10 +540,8 @@ class _DrawingPageState extends State<DrawingPage> {
           ..strokeWidth = 2.0
           ..style = PaintingStyle.stroke
           ..strokeCap = ui.StrokeCap.round;
-      // ▼▼▼ 【変更】消しゴムのPaintは不要になったため削除（もしくはそのままでも影響なし） ▼▼▼
       case DrawingTool.eraser:
-         return Paint(); // 何も描画しない
-      // ▲▲▲
+         return Paint();
       case DrawingTool.line:
         return Paint()
           ..color = Colors.black
@@ -612,6 +680,7 @@ class _DrawingPageState extends State<DrawingPage> {
                       _buildToolButton(DrawingTool.pen, Icons.edit, '自由線'),
                       _buildToolButton(DrawingTool.line, Icons.show_chart, '直線'),
                       _buildToolButton(DrawingTool.rectangle, Icons.crop_square, '四角'),
+                      _buildToolButton(DrawingTool.crossedRectangle, Icons.close, '四角バツ'),
                       _buildToolButton(DrawingTool.dimension, Icons.straighten, '寸法線'),
                       _buildToolButton(DrawingTool.text, Icons.text_fields, 'テキスト'),
                       _buildToolButton(DrawingTool.eraser, Icons.cleaning_services, '消しゴム'),

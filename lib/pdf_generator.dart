@@ -48,80 +48,100 @@ class PdfGenerator {
     return await doc.save();
   }
 
+  // ▼▼▼ 【変更】 Positionedのheightエラーを修正 ▼▼▼
   pw.Widget _buildPageContent(
       pw.Context ctx,
       FormRecord r,
       pw.MemoryImage yokoshitaImage,
       pw.MemoryImage hiraichiImage,
       pw.MemoryImage subzaiImage) {
-    return pw.Column(
+    return pw.Stack(
       children: [
-        pw.Expanded(
-          flex: 4,
-          child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-            children: [
-              _buildHeader(r),
-              pw.SizedBox(height: 12),
-              pw.Expanded(
-                child: pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(horizontal: 1.0),
-                  child: _buildDrawings(
-                      ctx, r, yokoshitaImage, hiraichiImage, subzaiImage),
-                ),
+        // --- 1. 背景となる基本レイアウト（ヘッダー、図面、備考） ---
+        pw.Column(
+          children: [
+            // --- 上半分 ---
+            pw.Expanded(
+              flex: 5,
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                children: [
+                  _buildHeader(r),
+                  pw.SizedBox(height: 12),
+                  pw.Expanded(
+                    child: pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 1.0),
+                      child: _buildDrawings(
+                          ctx, r, yokoshitaImage, hiraichiImage, subzaiImage),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
+            pw.SizedBox(height: 8),
+            // --- 下半分（備考のみ） ---
+            pw.Expanded(
+              flex: 3,
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(flex: 1, child: pw.Container()), // 部材情報のための空のスペース
+                  pw.SizedBox(width: 12),
+                  pw.Expanded(
+                    flex: 1,
+                    child: _buildRemarksSection(r),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        // --- 2. 上に重ねる部材情報セクション ---
+        pw.Positioned(
+          top: 340,
+          left: 0,
+          right: 300,
+          child: pw.SizedBox(
+            height: 450, // ★★★ 部材情報エリアの「高さ」 ★★★
+            child: _buildComponentsSection(r),
           ),
         ),
-        pw.SizedBox(height: 8),
-        pw.SizedBox(
-          height: 280,
-          child: pw.Row(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Expanded(
-                flex: 1,
-                child: pw.Transform.translate(
-                  offset: const pdf.PdfPoint(0, 160),
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                    children: [
-                      pw.Text('部材情報',
-                          style: pw.TextStyle(
-                              fontSize: 13, fontWeight: pw.FontWeight.bold)),
-                      pw.SizedBox(height: 4),
-                      pw.SizedBox(
-                          height: 340, child: _buildComponentsTable(r)),
-                    ],
-                  ),
-                ),
-              ),
-              pw.SizedBox(width: 12),
-              pw.Expanded(
-                flex: 1,
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                  children: [
-                    pw.Text('備考',
-                        style: pw.TextStyle(
-                            fontSize: 13, fontWeight: pw.FontWeight.bold)),
-                    pw.SizedBox(height: 4),
-                    pw.Expanded(
-                      child: pw.Container(
-                        decoration: pw.BoxDecoration(
-                          border: pw.Border.all(
-                              color: pdf.PdfColors.grey, width: 0.5),
-                        ),
-                        child: pw.Padding(
-                          padding: const pw.EdgeInsets.all(4),
-                          child: pw.Text(r.remarks ?? ''),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+      ],
+    );
+  }
+  // ▲▲▲
+
+  pw.Widget _buildComponentsSection(FormRecord r) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Text('部材情報',
+            style:
+                pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 4),
+        pw.Expanded(child: _buildComponentsTable(r)),
+      ],
+    );
+  }
+
+  pw.Widget _buildRemarksSection(FormRecord r) {
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+      children: [
+        pw.Text('備考',
+            style:
+                pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 4),
+        pw.Expanded(
+          child: pw.Container(
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: pdf.PdfColors.grey, width: 0.5),
+            ),
+            child: pw.Padding(
+              padding: const pw.EdgeInsets.all(4),
+              child: pw.Text(r.remarks ?? '', style: const pw.TextStyle(fontSize: 10)),
+            ),
           ),
         ),
       ],
@@ -332,19 +352,22 @@ class PdfGenerator {
           if (r.materialType == ProductMaterialType.domestic) {
             if (partName == '滑材' && insideL != null) calculatedValue = insideL + 30;
             if (partName == 'ゲタ' && insideL != null) calculatedValue = insideL + 60;
-            if (['H', '負荷材1', '負荷材2', '押さえ', '梁'].contains(partName))
-              return r.insideLength ?? '-';
+            if (['H', '負荷材1', '負荷材2', '押さえ', '梁'].contains(partName)) {
+              return r.insideWidth ?? '-';
+            }
           } else {
             if (partName == '滑材' && insideL != null) calculatedValue = insideL + 50;
             if (partName == 'ゲタ' && insideL != null) calculatedValue = insideL + 100;
-            if (['H', '負荷材1', '負荷材2', '押さえ', '梁'].contains(partName))
+            if (['H', '負荷材1', '負荷材2', '押さえ', '梁'].contains(partName)) {
               return r.insideWidth ?? '-';
+            }
           }
           break;
         case PackageStyle.yokoshita:
           if (partName == '滑材') return r.insideLength ?? '-';
-          if (['ゲタ', 'H', '負荷材1', '負荷材2'].contains(partName))
+          if (['ゲタ', 'H', '負荷材1', '負荷材2'].contains(partName)) {
             return r.insideWidth ?? '-';
+          }
           break;
         default:
           break;

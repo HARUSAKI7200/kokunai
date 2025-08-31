@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-// ▼▼▼ 【変更】 DrawingToolにslashedRectangleを追加 ▼▼▼
 enum DrawingTool { pen, line, rectangle, eraser, dimension, text, crossedRectangle, slashedRectangle }
 
 // DrawingElementクラス群
@@ -27,10 +26,8 @@ abstract class DrawingElement {
         return Rectangle.fromJson(json);
       case 'crossed_rect':
         return CrossedRectangle.fromJson(json);
-      // ▼▼▼ 【追加】 'slashed_rect' の分岐を追加 ▼▼▼
       case 'slashed_rect':
         return SlashedRectangle.fromJson(json);
-      // ▲▲▲
       case 'dimension':
         return DimensionLine.fromJson(json);
       case 'text':
@@ -97,6 +94,27 @@ class DrawingPath extends DrawingElementWithPoints {
   }
   @override
   bool contains(Offset point) {
+    // For a path, we can check if the point is close to any segment of the path.
+    const double tolerance = 10.0; // Defines how close the point must be to the line
+    if (points.length < 2) return false;
+
+    for (int i = 0; i < points.length - 1; i++) {
+      final p1 = points[i];
+      final p2 = points[i+1];
+      
+      final rect = Rect.fromPoints(p1, p2).inflate(tolerance);
+      if (!rect.contains(point)) continue;
+
+      final double distance = math.sqrt(math.pow(p2.dx - p1.dx, 2) + math.pow(p2.dy - p1.dy, 2));
+      if (distance == 0) continue;
+      
+      final double crossProduct = (point.dy - p1.dy) * (p2.dx - p1.dx) - (point.dx - p1.dx) * (p2.dy - p1.dy);
+      final double distToLine = crossProduct.abs() / distance;
+
+      if (distToLine < tolerance) {
+        return true;
+      }
+    }
     return false;
   }
 
@@ -143,7 +161,10 @@ class StraightLine extends DrawingElementWithPoints {
           ..strokeWidth = json['paint']['strokeWidth'],
       );
   @override
-  bool contains(Offset point) => false;
+  bool contains(Offset point) {
+    final rect = Rect.fromPoints(start, end).inflate(10.0);
+    return rect.contains(point);
+  }
   @override
   void move(Offset delta) {
     start += delta;
@@ -187,7 +208,7 @@ class Rectangle extends DrawingElement {
           ..style = PaintingStyle.stroke,
       );
   @override
-  bool contains(Offset point) => rect.contains(point);
+  bool contains(Offset point) => rect.inflate(5.0).contains(point);
   @override
   void move(Offset delta) {
     start += delta;
@@ -236,7 +257,7 @@ class CrossedRectangle extends DrawingElement {
           ..style = PaintingStyle.stroke,
       );
   @override
-  bool contains(Offset point) => rect.contains(point);
+  bool contains(Offset point) => rect.inflate(5.0).contains(point);
   @override
   void move(Offset delta) {
     start += delta;
@@ -244,7 +265,6 @@ class CrossedRectangle extends DrawingElement {
   }
 }
 
-// ▼▼▼ 【追加】斜線付きの四角形クラス ▼▼▼
 class SlashedRectangle extends DrawingElement {
   Offset start;
   Offset end;
@@ -257,9 +277,7 @@ class SlashedRectangle extends DrawingElement {
 
   @override
   void draw(Canvas canvas, Size canvasSize) {
-    // 1. 外枠の四角形を描画
     canvas.drawRect(rect, paint);
-    // 2. 左上から右下への線を描画
     canvas.drawLine(rect.topLeft, rect.bottomRight, paint);
   }
 
@@ -287,14 +305,13 @@ class SlashedRectangle extends DrawingElement {
           ..style = PaintingStyle.stroke,
       );
   @override
-  bool contains(Offset point) => rect.contains(point);
+  bool contains(Offset point) => rect.inflate(5.0).contains(point);
   @override
   void move(Offset delta) {
     start += delta;
     end += delta;
   }
 }
-// ▲▲▲
 
 class DimensionLine extends DrawingElementWithPoints {
   Offset start;
